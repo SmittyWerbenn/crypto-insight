@@ -4,6 +4,9 @@ import type { TechnicalAnalysis } from './technical-analysis.js';
 const close = (a: number | null | undefined, b: number | null | undefined, tol = 1e-6) =>
   a === b || (a != null && b != null && Math.abs(a - b) <= Math.max(tol, Math.abs(b) * 1e-4));
 
+/** Some models answer confidence on a 0-1 scale despite the prompt; the app uses 0-100. */
+export const normalizeConfidence = (c: number | null) => (c !== null && c > 0 && c <= 1 ? Math.round(c * 100) : c);
+
 /**
  * Claude may interpret but never originate numbers. Any backend-owned value that differs is
  * replaced with the backend value and reported, and confidence is capped when data is weak.
@@ -11,6 +14,7 @@ const close = (a: number | null | undefined, b: number | null | undefined, tol =
 export function enforceCoinConsistency(ai: CoinAnalysis, t: TechnicalAnalysis): { analysis: CoinAnalysis; warnings: string[] } {
   const warnings: string[] = [];
   const out: CoinAnalysis = structuredClone(ai);
+  out.confidence = normalizeConfidence(out.confidence);
   if (out.signal !== t.signal) {
     warnings.push(`AI signal ${out.signal} replaced with engine signal ${t.signal}`);
     out.signal = t.signal;
@@ -62,6 +66,7 @@ export function enforceCoinConsistency(ai: CoinAnalysis, t: TechnicalAnalysis): 
 export function enforceMarketConsistency(ai: MarketSummary, allowedLevels: Map<string, { support: number | null; resistance: number | null }>, condition: MarketSummary['marketCondition']) {
   const warnings: string[] = [];
   const out = structuredClone(ai);
+  out.confidence = normalizeConfidence(out.confidence);
   if (out.marketCondition !== condition) {
     warnings.push(`AI market condition ${out.marketCondition} replaced with engine condition ${condition}`);
     out.marketCondition = condition;

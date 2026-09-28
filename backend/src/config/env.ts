@@ -26,7 +26,7 @@ const EnvSchema = z.object({
   AI_PROVIDER: z.enum(['anthropic', 'openai-compatible']).default('anthropic'),
   AI_COMPAT_BASE_URL: z.string().url().default('https://generativelanguage.googleapis.com/v1beta/openai'),
   AI_COMPAT_API_KEY: z.string().optional(),
-  AI_COMPAT_MODEL: z.string().default('gemini-2.5-flash'),
+  AI_COMPAT_MODEL: z.string().default('gemini-3.1-flash-lite'),
   AI_COMPAT_JSON_MODE: z.enum(['json_schema', 'json_object']).default('json_schema'),
   AI_COMPAT_REASONING_EFFORT: z.string().optional(),
 

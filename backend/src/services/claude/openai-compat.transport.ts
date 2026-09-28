@@ -55,6 +55,11 @@ export function openAiCompatTransport(o: CompatOptions): ClaudeTransport {
         } catch (e) {
           const name = (e as Error).name;
           if (name === 'TimeoutError' || name === 'AbortError') throw new ClaudeError('TIMEOUT', 'AI request timed out');
+          // Connection failures are often transient (e.g. one unreachable address on the first connect): retry.
+          if (attempt < maxRetries) {
+            await sleep(1000 * 2 ** attempt);
+            continue;
+          }
           throw new ClaudeError('CONNECTION', `Could not reach AI provider: ${(e as Error).message}`);
         }
         if ((res.status === 429 || res.status >= 500) && attempt < maxRetries) {

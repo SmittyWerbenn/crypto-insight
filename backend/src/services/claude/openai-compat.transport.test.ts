@@ -79,10 +79,21 @@ describe('openAiCompatTransport', () => {
     await expect(invalid.svc.summarizeMarket({ a: Math.random() }, true)).rejects.toMatchObject({ code: 'INVALID_JSON' });
   });
 
+  it('retries a transient connection failure', async () => {
+    let calls = 0;
+    const flaky = (async () => {
+      if (calls++ === 0) throw new TypeError('fetch failed');
+      return completion(JSON.stringify(summary));
+    }) as unknown as typeof fetch;
+    const t = openAiCompatTransport({ baseUrl: 'https://x', apiKey: 'k', jsonMode: 'json_schema', timeoutMs: 5000, maxRetries: 1, fetchImpl: flaky });
+    await new ClaudeService(t, 'm').summarizeMarket({ a: Math.random() }, true);
+    expect(calls).toBe(2);
+  });
+
   it('maps timeouts and connection failures', async () => {
     const timeout = openAiCompatTransport({ baseUrl: 'https://x', apiKey: 'k', jsonMode: 'json_schema', timeoutMs: 1, fetchImpl: (async () => { throw Object.assign(new Error('t'), { name: 'TimeoutError' }); }) as typeof fetch });
     await expect(new ClaudeService(timeout, 'm').summarizeMarket({ a: Math.random() }, true)).rejects.toMatchObject({ code: 'TIMEOUT' });
-    const down = openAiCompatTransport({ baseUrl: 'https://x', apiKey: 'k', jsonMode: 'json_schema', timeoutMs: 1, fetchImpl: (async () => { throw new TypeError('fetch failed'); }) as typeof fetch });
+    const down = openAiCompatTransport({ baseUrl: 'https://x', apiKey: 'k', jsonMode: 'json_schema', timeoutMs: 1, maxRetries: 0, fetchImpl: (async () => { throw new TypeError('fetch failed'); }) as typeof fetch });
     await expect(new ClaudeService(down, 'm').summarizeMarket({ a: Math.random() }, true)).rejects.toMatchObject({ code: 'CONNECTION' });
   });
 });

@@ -82,7 +82,7 @@ Public market data only (no API key, no trading). Spot: 24h tickers, klines (pag
 
 `claude-opus-5` by default with adaptive thinking and structured JSON output. Claude receives only backend-computed context and cannot change any number — see [docs/ai-analysis.md](docs/ai-analysis.md). Without an API key the platform works fully; AI panels state "AI analysis not configured".
 
-Alternative provider: set `AI_PROVIDER=openai-compatible` with `AI_COMPAT_API_KEY` (and optionally `AI_COMPAT_BASE_URL` / `AI_COMPAT_MODEL`). The default points at Google Gemini's OpenAI-compatible endpoint (`gemini-2.5-flash`), which has a free tier (key from https://aistudio.google.com/apikey). The same prompts, JSON schema, validation and consistency checks apply. If a provider does not support `json_schema` structured output, set `AI_COMPAT_JSON_MODE=json_object`.
+Alternative provider: set `AI_PROVIDER=openai-compatible` with `AI_COMPAT_API_KEY` (and optionally `AI_COMPAT_BASE_URL` / `AI_COMPAT_MODEL`). The default points at Google Gemini's OpenAI-compatible endpoint (`gemini-3.1-flash-lite`; any model from its `/models` list works), which has a free tier (key from https://aistudio.google.com/apikey). The same prompts, JSON schema, validation and consistency checks apply. If a provider does not support `json_schema` structured output, set `AI_COMPAT_JSON_MODE=json_object`.
 
 ## Database
 
