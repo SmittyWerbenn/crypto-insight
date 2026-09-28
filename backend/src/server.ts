@@ -10,6 +10,7 @@ import { logger } from './utils/logger.js';
 
 async function main() {
   logger.info({ mock: env.MOCK_MODE, model: env.ANTHROPIC_MODEL, ai: Boolean(env.ANTHROPIC_API_KEY) }, 'Starting CryptoInsight AI backend');
+  if (!env.APP_PASSWORD && env.NODE_ENV === 'production') logger.warn('APP_PASSWORD is not set: the API is open to anyone who can reach it');
   await cache.init();
   if (await initDb()) await runMigrations();
   startBacktestWorker();

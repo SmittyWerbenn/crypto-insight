@@ -38,6 +38,10 @@ const EnvSchema = z.object({
   CORS_ORIGIN: z.string().default('http://localhost:5173,http://localhost:8080'),
   RATE_LIMIT_MAX: z.coerce.number().int().positive().default(300),
 
+  // Single-user login. Empty = no authentication (local development only).
+  APP_PASSWORD: z.string().optional(),
+  AUTH_TOKEN_TTL_HOURS: z.coerce.number().int().positive().default(168),
+
   MOCK_MODE: bool.default(false),
   ENABLE_JOBS: bool.default(true),
   ENABLE_WEBSOCKET: bool.default(true),
