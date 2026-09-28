@@ -14,7 +14,7 @@ Services: `postgres` (volume `pgdata`), `redis` (AOF, volume `redisdata`), `back
 
 - Strong `POSTGRES_PASSWORD`; use `sslmode=require` in `DATABASE_URL` for managed databases.
 - `CORS_ORIGIN` set to the public origin.
-- Put TLS and authentication in front (v1 is single-user with no login) — e.g. an OAuth/SSO reverse proxy.
+- Put TLS in front and set `APP_PASSWORD` (single-user password login). Every `/api/*` route except `/api/health` and `/api/auth/*` then needs a token from `POST /api/auth/login` (sent as `Authorization: Bearer`, or `?access_token=` for `/api/stream` and backtest CSV export). Tokens last `AUTH_TOKEN_TTL_HOURS` (default 168); changing the password revokes all of them. Because stream URLs carry the token, keep them out of proxy access logs.
 - `.env` is git-ignored; never commit keys. The Claude key is only read by the backend container.
 - Run a single backend replica (the WebSocket stream and cron jobs are per process). Scale horizontally only after splitting jobs/stream into a dedicated worker.
 - Back up the `pgdata` volume (signals, AI history, backtests, portfolio).

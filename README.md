@@ -132,7 +132,7 @@ Backend coverage: indicators (RSI reference data, MACD, MA/EMA, Bollinger, ATR, 
 
 ## Production Deployment
 
-See [docs/deployment.md](docs/deployment.md): TLS + auth proxy (v1 has no login), strong DB password, single backend replica, volume backups.
+See [docs/deployment.md](docs/deployment.md): TLS, `APP_PASSWORD` login, strong DB password, single backend replica, volume backups.
 
 ## Troubleshooting
 
