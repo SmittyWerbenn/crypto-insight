@@ -1,0 +1,59 @@
+# Backend-only stack for a server (frontend is served by GitHub Pages).
+# Usage (from the repo root):
+#   cp .env.example .env   # edit values
+#   docker compose -f deploy/docker-compose.server.yml --env-file .env up -d --build
+# The API listens on 127.0.0.1:${BACKEND_PORT:-3000}; put an HTTPS reverse proxy
+# (Caddy / nginx) or a Cloudflare Tunnel in front of it.
+name: cryptoinsight-api
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-cryptoinsight}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-cryptoinsight}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}']
+      interval: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ['redis-server', '--appendonly', 'yes']
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      retries: 20
+
+  backend:
+    build:
+      context: ..
+      dockerfile: backend/Dockerfile
+    restart: unless-stopped
+    env_file:
+      - path: ../.env
+        required: false
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgres://${POSTGRES_USER:-cryptoinsight}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-cryptoinsight}
+      REDIS_URL: redis://redis:6379
+      CORS_ORIGIN: ${CORS_ORIGIN:-https://smittywerbenn.github.io}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - '127.0.0.1:${BACKEND_PORT:-3000}:3000'
+
+volumes:
+  pgdata:
+  redisdata:

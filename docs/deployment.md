@@ -56,4 +56,13 @@ Setup:
 4. **Settings → Secrets and variables → Actions → Variables → `VITE_API_URL`** = backend origin, e.g. `https://api.example.com` (no trailing slash). The Claude key stays on the backend only.
 5. Re-run the "Deploy frontend to GitHub Pages" workflow.
 
+For a backend-only server use `deploy/docker-compose.server.yml` (backend + PostgreSQL + Redis, API bound to `127.0.0.1:3000` for a reverse proxy):
+
+```bash
+cp .env.example .env   # set POSTGRES_PASSWORD, ANTHROPIC_API_KEY, CORS_ORIGIN
+docker compose -f deploy/docker-compose.server.yml --env-file .env up -d --build
+```
+
+Reverse proxy notes: the SSE endpoint `/api/stream` must not be buffered (`proxy_buffering off;` in nginx; Caddy streams by default) and needs a long read timeout.
+
 Until `VITE_API_URL` points at a running backend, the Pages site shows "Backend API unreachable".
