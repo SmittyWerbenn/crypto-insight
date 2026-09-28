@@ -147,7 +147,7 @@ export async function analyzeCoin(symbol: string, tf: Timeframe, ai: 'auto' | 'f
   const prev = await lastAi(symbol, tf, 'COIN');
   if (ai === 'none') {
     if (!isAiConfigured() && !env.MOCK_MODE) {
-      result.ai = { ...result.ai, status: 'NOT_CONFIGURED', error: 'AI analysis unavailable: ANTHROPIC_API_KEY is not configured. Technical market data is still available.' };
+      result.ai = { ...result.ai, status: 'NOT_CONFIGURED', error: 'AI analysis unavailable: no AI provider API key is configured. Technical market data is still available.' };
     }
     if (prev?.result && prev.candleTime === t.candleTime) {
       const r = prev.result as { analysis: CoinAnalysis; warnings: string[] };
@@ -168,7 +168,7 @@ export async function analyzeCoin(symbol: string, tf: Timeframe, ai: 'auto' | 'f
     }).catch((e) => logger.warn({ err: (e as Error).message }, 'recordSignal failed'));
 
   if (!isAiConfigured() && !env.MOCK_MODE) {
-    result.ai = { ...result.ai, status: 'NOT_CONFIGURED', error: 'AI analysis unavailable: ANTHROPIC_API_KEY is not configured. Technical market data is still available.' };
+    result.ai = { ...result.ai, status: 'NOT_CONFIGURED', error: 'AI analysis unavailable: no AI provider API key is configured. Technical market data is still available.' };
     await persistSignal(null);
     return result;
   }
@@ -386,7 +386,7 @@ export async function marketSummary(force = false) {
   const fresh = prev && Date.now() - prev.timestamp.getTime() < env.AI_MARKET_SUMMARY_MINUTES * 60_000;
   const prevOut = prev ? { ...(prev.result as { summary: MarketSummary; warnings: string[] }), model: prev.model, generatedAt: prev.timestamp.toISOString() } : null;
   if (!force && fresh && prevOut) return { ...base, ai: { status: 'OK' as const, ...prevOut, cached: true, error: null } };
-  if (!isAiConfigured() && !env.MOCK_MODE) return { ...base, ai: { status: 'NOT_CONFIGURED' as const, summary: null, warnings: [], model: null, generatedAt: null, cached: false, error: 'AI analysis unavailable: ANTHROPIC_API_KEY is not configured. Technical market data is still available.' } };
+  if (!isAiConfigured() && !env.MOCK_MODE) return { ...base, ai: { status: 'NOT_CONFIGURED' as const, summary: null, warnings: [], model: null, generatedAt: null, cached: false, error: 'AI analysis unavailable: no AI provider API key is configured. Technical market data is still available.' } };
   if (!isAiConfigured() && env.MOCK_MODE) {
     const summary: MarketSummary = {
       marketCondition: condition, headline: '[MOCK] Market summary placeholder', summary: '[MOCK] MOCK_MODE aktif — tidak ada panggilan AI. Semua angka di dashboard berasal dari data sintetis.', btcTrend: '[MOCK]', altcoinTrend: '[MOCK]', breadth: `[MOCK] ${breadth.advancers} naik / ${breadth.decliners} turun`, volume: '[MOCK]', volatility: '[MOCK]', sentiment: '[MOCK]', derivatives: '[MOCK]', historicalContext: '[MOCK]', opportunities: [], risks: ['[MOCK] Data sintetis'], keyLevels: [], confidence: null, uncertainty: '[MOCK]',

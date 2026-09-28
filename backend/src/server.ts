@@ -1,4 +1,4 @@
-import { env } from './config/env.js';
+import { aiModelName, env, isAiConfigured } from './config/env.js';
 import { closeDb, initDb } from './db/client.js';
 import { runMigrations } from './db/migrate.js';
 import { startJobs } from './jobs/scheduler.js';
@@ -9,7 +9,7 @@ import { startBacktestWorker, stopBacktestWorker } from './services/backtest/bac
 import { logger } from './utils/logger.js';
 
 async function main() {
-  logger.info({ mock: env.MOCK_MODE, model: env.ANTHROPIC_MODEL, ai: Boolean(env.ANTHROPIC_API_KEY) }, 'Starting CryptoInsight AI backend');
+  logger.info({ mock: env.MOCK_MODE, aiProvider: env.AI_PROVIDER, model: aiModelName(), ai: isAiConfigured() }, 'Starting CryptoInsight AI backend');
   if (!env.APP_PASSWORD && env.NODE_ENV === 'production') logger.warn('APP_PASSWORD is not set: the API is open to anyone who can reach it');
   await cache.init();
   if (await initDb()) await runMigrations();

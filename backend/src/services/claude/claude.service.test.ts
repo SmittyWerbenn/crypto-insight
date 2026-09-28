@@ -2,7 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { describe, expect, it, vi } from 'vitest';
 import { ClaudeError, ClaudeService, type ClaudeTransport } from './claude.service.js';
 import type { CoinAnalysis } from './schemas.js';
-import { enforceCoinConsistency } from '../analysis/consistency.js';
+import { enforceCoinConsistency, normalizeConfidence } from '../analysis/consistency.js';
 import { analyzeCandles } from '../analysis/technical-analysis.js';
 import { randomWalk } from '../../test-utils/candles.js';
 
@@ -110,5 +110,12 @@ describe('consistency enforcement', () => {
     expect(analysis.historicalContext.sampleSize).toBe(t.historical.sampleSize);
     expect(analysis.scenario.bullish.target).toBe(t.scenarios!.bullish.target);
     expect(warnings.length).toBeGreaterThan(0);
+  });
+
+  it('normalizes 0-1 confidence to 0-100', () => {
+    expect(normalizeConfidence(0.7)).toBe(70);
+    expect(normalizeConfidence(72)).toBe(72);
+    expect(normalizeConfidence(0)).toBe(0);
+    expect(normalizeConfidence(null)).toBeNull();
   });
 });

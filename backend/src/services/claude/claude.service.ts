@@ -1,28 +1,16 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { createHash } from 'node:crypto';
 import type { z } from 'zod';
-import { env } from '../../config/env.js';
+import { aiModelName, env } from '../../config/env.js';
 import { logger } from '../../utils/logger.js';
 import { markFailure, markSuccess } from '../binance/status.js';
 import { cache } from '../cache/cache.js';
 import { CoinAnalysisJsonSchema, CoinAnalysisSchema, MarketSummaryJsonSchema, MarketSummarySchema, type CoinAnalysis, type MarketSummary } from './schemas.js';
+import { ClaudeError, type ClaudeTransport } from './errors.js';
 import { SYSTEM_PROMPT, coinUserPrompt, marketUserPrompt } from './prompts.js';
+import { openAiCompatTransport } from './openai-compat.transport.js';
 
-export type ClaudeErrorCode = 'NOT_CONFIGURED' | 'TIMEOUT' | 'RATE_LIMITED' | 'API_ERROR' | 'CONNECTION' | 'INVALID_JSON' | 'SCHEMA_MISMATCH' | 'REFUSAL' | 'TRUNCATED';
-
-export class ClaudeError extends Error {
-  constructor(
-    public code: ClaudeErrorCode,
-    message: string,
-  ) {
-    super(message);
-  }
-}
-
-/** Minimal surface of the SDK we use — injectable for tests. */
-export interface ClaudeTransport {
-  create(params: Record<string, unknown>): Promise<{ content: { type: string; text?: string }[]; stop_reason: string | null; model: string; usage?: unknown }>;
-}
+export { ClaudeError, type ClaudeErrorCode, type ClaudeTransport } from './errors.js';
 
 function sdkTransport(): ClaudeTransport {
   const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY, timeout: env.ANTHROPIC_TIMEOUT_MS, maxRetries: 2 });
@@ -31,13 +19,27 @@ function sdkTransport(): ClaudeTransport {
   };
 }
 
+function defaultTransport(): ClaudeTransport | null {
+  if (env.AI_PROVIDER === 'openai-compatible') {
+    if (!env.AI_COMPAT_API_KEY) return null;
+    return openAiCompatTransport({
+      baseUrl: env.AI_COMPAT_BASE_URL,
+      apiKey: env.AI_COMPAT_API_KEY,
+      jsonMode: env.AI_COMPAT_JSON_MODE,
+      reasoningEffort: env.AI_COMPAT_REASONING_EFFORT || undefined,
+      timeoutMs: env.ANTHROPIC_TIMEOUT_MS,
+    });
+  }
+  return env.ANTHROPIC_API_KEY ? sdkTransport() : null;
+}
+
 const supportsAdaptiveThinking = (m: string) => !/haiku|claude-3|sonnet-4-5|opus-4-5|opus-4-1|opus-4-0|sonnet-4-0/.test(m);
 const supportsFallbacks = (m: string) => /^claude-(opus-5|fable-5|mythos-5)/.test(m);
 
 export class ClaudeService {
   constructor(
-    private transport: ClaudeTransport | null = env.ANTHROPIC_API_KEY ? sdkTransport() : null,
-    private model = env.ANTHROPIC_MODEL,
+    private transport: ClaudeTransport | null = defaultTransport(),
+    private model = aiModelName(),
   ) {}
 
   get configured() {
@@ -49,7 +51,7 @@ export class ClaudeService {
   }
 
   private async call<T>(schema: z.ZodType<T>, jsonSchema: object, userPrompt: string): Promise<{ data: T; model: string }> {
-    if (!this.transport) throw new ClaudeError('NOT_CONFIGURED', 'ANTHROPIC_API_KEY is not configured');
+    if (!this.transport) throw new ClaudeError('NOT_CONFIGURED', 'AI provider API key is not configured');
     const params: Record<string, unknown> = {
       model: this.model,
       max_tokens: 16000,
@@ -68,6 +70,7 @@ export class ClaudeService {
       res = await this.transport.create(params);
     } catch (e) {
       markFailure('claude', (e as Error).message);
+      if (e instanceof ClaudeError) throw e;
       if (e instanceof Anthropic.APIConnectionTimeoutError) throw new ClaudeError('TIMEOUT', 'Claude request timed out');
       if (e instanceof Anthropic.RateLimitError) throw new ClaudeError('RATE_LIMITED', 'Claude rate limit reached');
       if (e instanceof Anthropic.APIConnectionError) throw new ClaudeError('CONNECTION', 'Could not reach Claude API');

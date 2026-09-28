@@ -57,7 +57,7 @@ export function MarketSummaryPanel() {
 
             {data.ai.status === 'NOT_CONFIGURED' && (
               <Notice tone="info" className="mt-4" title="AI analysis not configured">
-                Set <code className="font-mono">ANTHROPIC_API_KEY</code> on the backend to enable Claude interpretation. Technical market data below is fully available.
+                Configure an AI provider key on the backend (<code className="font-mono">ANTHROPIC_API_KEY</code> or <code className="font-mono">AI_COMPAT_API_KEY</code>) to enable AI interpretation. Technical market data below is fully available.
               </Notice>
             )}
             {data.ai.status === 'UNAVAILABLE' && (
