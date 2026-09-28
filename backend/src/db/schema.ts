@@ -334,3 +334,21 @@ export const sentiment = pgTable(
   },
   (t) => [uniqueIndex('sentiment_source_ts_idx').on(t.source, t.timestamp)],
 );
+
+/** Scheduled trade-plan scenario scans (Skenario Otomatis). */
+export const scenarioRuns = pgTable(
+  'scenario_runs',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    createdAt: createdAt(),
+    trigger: varchar('trigger', { length: 16 }).notNull(), // schedule | manual | startup
+    status: varchar('status', { length: 16 }).notNull(), // OK | FAILED
+    fxRate: doublePrecision('fx_rate'),
+    capitalIdr: doublePrecision('capital_idr').notNull(),
+    config: jsonb('config').notNull(),
+    result: jsonb('result'),
+    error: text('error'),
+    durationMs: integer('duration_ms'),
+  },
+  (t) => [index('scenario_runs_created_idx').on(t.createdAt)],
+);

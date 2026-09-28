@@ -25,7 +25,7 @@ interface PlanHistory {
   reliability: string;
 }
 
-interface Pick {
+export interface Pick {
   rank: number;
   symbol: string;
   signal: string;
@@ -76,7 +76,7 @@ const STYLE: { value: Tf; label: string; hint: string }[] = [
 ];
 
 /** Durasi dalam Bahasa Indonesia, mis. "~9 jam", "~5 hari". */
-function durasi(ms: number | null): string {
+export function durasi(ms: number | null): string {
   if (ms === null || !Number.isFinite(ms)) return '–';
   const jam = ms / 3_600_000;
   if (jam < 1) return `~${Math.round(ms / 60_000)} menit`;
@@ -85,7 +85,13 @@ function durasi(ms: number | null): string {
   return hari < 14 ? `~${Math.round(hari)} hari` : `~${Math.round(hari / 7)} minggu`;
 }
 
-function PickCard({ p }: { p: Pick }) {
+export const TAG_STYLE: Record<string, string> = {
+  Harian: 'bg-amber-100 text-amber-800',
+  Swing: 'bg-primary-soft text-primary',
+  Posisi: 'bg-violet-100 text-violet-800',
+};
+
+export function PickCard({ p, tag }: { p: Pick; tag?: string }) {
   const h = p.history;
   return (
     <Card className="overflow-hidden">
@@ -96,6 +102,7 @@ function PickCard({ p }: { p: Pick }) {
             <Link to={`/analysis/${p.symbol}`} className="text-base font-semibold hover:text-primary">
               {baseAsset(p.symbol)}
             </Link>
+            {tag && <span className={cn('ml-2 rounded-md px-1.5 py-0.5 text-[11px] font-semibold', TAG_STYLE[tag] ?? 'bg-slate-100 text-ink-2')}>{tag} · peringkat #{p.rank}</span>}
             <div className="text-xs text-ink-3">
               Sinyal {p.signalLabel} · skor {p.technicalScore.toFixed(0)}/100
             </div>

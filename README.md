@@ -29,6 +29,14 @@ Halaman **Rencana Trading** (`/planner`, `POST /api/planner`): masukkan modal (R
 
 Semua estimasi berasal dari data dan simulasi historis — bukan jaminan.
 
+## Skenario Otomatis
+
+Menu **Skenario Otomatis** (`/scenario`) menjalankan Rencana Trading secara terjadwal setiap `SCENARIO_INTERVAL_HOURS` jam (default 6 → 00:00, 06:00, 12:00, 18:00 WIB) dengan modal Rp 1.000.000, profil agresif, maks. 5 koin, 20 koin teraktif + watchlist — untuk ketiga gaya trading sekaligus, masing-masing diberi tag **Harian (1J)**, **Swing (4J)**, **Posisi (1 hari)**. Semua parameter bisa diubah lewat env `SCENARIO_*`.
+
+Setiap scan disimpan (`scenario_runs`) dan rekomendasinya dilacak sebagai paper trading dari harga pasar saat scan: target tercapai, kena cut loss, dijual karena waktu habis, atau masih berjalan — beserta untung/rugi setelah biaya. Jika server mati saat jadwal, scan susulan berjalan otomatis saat server menyala. Tombol **Scan sekarang** menjalankan scan manual (`POST /api/scenario/run`).
+
+API: `GET /api/scenario` (scan terakhir + jadwal), `GET /api/scenario/runs`, `GET /api/scenario/runs/:id` (dengan hasil pelacakan), `POST /api/scenario/run`.
+
 ## Bahasa & Mata Uang
 
 UI dan teks backend berbahasa Indonesia. Harga dari Binance (USDT) dikonversi ke Rupiah untuk tampilan memakai kurs USDT→IDR live (`GET /api/market/fx`; CoinGecko, cadangan ExchangeRate-API, cache 10 menit). Perhitungan internal tetap USDT. Mata uang bisa diganti ke USD di Pengaturan. **Kamus Istilah** (`/glossary`) menjelaskan 60+ istilah; ikon buku di samping label membuka penjelasannya.

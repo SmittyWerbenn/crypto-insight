@@ -19,6 +19,7 @@ import {
   Settings,
   Star,
   Target,
+  Radar,
   BookA,
   User,
   X,
@@ -35,6 +36,7 @@ import { fmtDate, fmtNum, fmtPriceSym } from '@/utils/format';
 const NAV = [
   { to: '/', label: 'Dasbor', icon: LayoutDashboard, end: true },
   { to: '/planner', label: 'Rencana Trading', icon: Target },
+  { to: '/scenario', label: 'Skenario Otomatis', icon: Radar },
   { to: '/markets', label: 'Pasar', icon: LineChart },
   { to: '/signals', label: 'Sinyal AI', icon: Bot },
   { to: '/watchlist', label: 'Watchlist', icon: Star },

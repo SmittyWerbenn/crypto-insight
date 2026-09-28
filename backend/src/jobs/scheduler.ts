@@ -8,6 +8,8 @@ import { cache } from '../services/cache/cache.js';
 import { trackOpenSignals } from '../services/signals/signals.service.js';
 import { logger } from '../utils/logger.js';
 import { getStatus } from '../services/binance/status.js';
+import { isDbReady } from '../db/client.js';
+import { latestScenario, runScenario } from '../services/planner/scenario.service.js';
 
 let running = false;
 
@@ -37,7 +39,21 @@ export async function runAnalysisCycle() {
   }
 }
 
+/** Skenario Otomatis: every SCENARIO_INTERVAL_HOURS on the WIB clock (00:00, 06:00, 12:00, 18:00 by default). */
+function startScenarioJob() {
+  if (!env.ENABLE_SCENARIO_JOB || !isDbReady()) return;
+  const run = (trigger: 'schedule' | 'startup') => void runScenario(trigger).catch((e) => logger.warn({ err: (e as Error).message }, 'Scenario scan skipped'));
+  cron.schedule(`0 */${env.SCENARIO_INTERVAL_HOURS} * * *`, () => run('schedule'), { timezone: env.APP_TIMEZONE });
+  // Catch up after downtime (e.g. the machine was asleep at the scheduled time)
+  setTimeout(async () => {
+    const last = await latestScenario().catch(() => null);
+    if (!last || Date.now() - new Date(last.createdAt).getTime() > env.SCENARIO_INTERVAL_HOURS * 3_600_000) run('startup');
+  }, 60_000);
+  logger.info({ everyHours: env.SCENARIO_INTERVAL_HOURS }, 'Scenario job scheduled');
+}
+
 export function startJobs() {
+  startScenarioJob();
   cron.schedule(env.AI_ANALYSIS_CRON, () => void runAnalysisCycle(), { timezone: env.APP_TIMEZONE });
   cron.schedule(env.SIGNAL_TRACKER_CRON, () => void trackOpenSignals().catch((e) => logger.warn({ err: (e as Error).message }, 'Signal tracker failed')), { timezone: env.APP_TIMEZONE });
   // Price alerts on live ticks (throttled per symbol)
