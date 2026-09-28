@@ -57,7 +57,7 @@ export function MarketSummaryPanel() {
 
             {data.ai.status === 'NOT_CONFIGURED' && (
               <Notice tone="info" className="mt-4" title="Analisa AI belum dikonfigurasi">
-                Atur <code className="font-mono">ANTHROPIC_API_KEY</code> di backend untuk mengaktifkan interpretasi Claude. Data teknikal pasar di bawah tetap tersedia lengkap.
+                Atur API key penyedia AI di backend (<code className="font-mono">ANTHROPIC_API_KEY</code> atau <code className="font-mono">AI_COMPAT_API_KEY</code>) untuk mengaktifkan interpretasi AI. Data teknikal pasar di bawah tetap tersedia lengkap.
               </Notice>
             )}
             {data.ai.status === 'UNAVAILABLE' && (

@@ -22,6 +22,14 @@ const EnvSchema = z.object({
   BINANCE_FUTURES_WS_URL: z.string().default('wss://fstream.binance.com'),
   BINANCE_TIMEOUT_MS: z.coerce.number().int().positive().default(10_000),
 
+  // anthropic = Claude via the Anthropic API; openai-compatible = Google Gemini, Groq, OpenRouter, ... (AI_COMPAT_*)
+  AI_PROVIDER: z.enum(['anthropic', 'openai-compatible']).default('anthropic'),
+  AI_COMPAT_BASE_URL: z.string().url().default('https://generativelanguage.googleapis.com/v1beta/openai'),
+  AI_COMPAT_API_KEY: z.string().optional(),
+  AI_COMPAT_MODEL: z.string().default('gemini-3.1-flash-lite'),
+  AI_COMPAT_JSON_MODE: z.enum(['json_schema', 'json_object']).default('json_schema'),
+  AI_COMPAT_REASONING_EFFORT: z.string().optional(),
+
   ANTHROPIC_API_KEY: z.string().optional(),
   ANTHROPIC_MODEL: z.string().default('claude-opus-5'),
   ANTHROPIC_EFFORT: z.enum(['low', 'medium', 'high', 'xhigh', 'max']).default('medium'),
@@ -38,6 +46,10 @@ const EnvSchema = z.object({
   APP_TIMEZONE: z.string().default('Asia/Jakarta'),
   CORS_ORIGIN: z.string().default('http://localhost:5173,http://localhost:8080'),
   RATE_LIMIT_MAX: z.coerce.number().int().positive().default(300),
+
+  // Single-user login. Empty = no authentication (local development only).
+  APP_PASSWORD: z.string().optional(),
+  AUTH_TOKEN_TTL_HOURS: z.coerce.number().int().positive().default(168),
 
   MOCK_MODE: bool.default(false),
   ENABLE_JOBS: bool.default(true),
@@ -58,4 +70,5 @@ if (!parsed.success) {
 
 export const env = parsed.data;
 export const trackedSymbols = env.TRACKED_SYMBOLS.split(',').map((s) => s.trim().toUpperCase()).filter(Boolean);
-export const isAiConfigured = () => Boolean(env.ANTHROPIC_API_KEY);
+export const isAiConfigured = () => Boolean(env.AI_PROVIDER === 'openai-compatible' ? env.AI_COMPAT_API_KEY : env.ANTHROPIC_API_KEY);
+export const aiModelName = () => (env.AI_PROVIDER === 'openai-compatible' ? env.AI_COMPAT_MODEL : env.ANTHROPIC_MODEL);

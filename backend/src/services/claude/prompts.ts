@@ -32,7 +32,7 @@ Distinguish clearly:
 
 Historical performance is not a guarantee of future performance.
 Technical score is not probability.
-AI confidence is not probability of profit: it expresses your confidence in the quality and internal consistency of the current analytical setup given the available data. Lower it when data is incomplete, indicators conflict, or the historical sample is small. Return null when data is insufficient to judge.
+AI confidence is not probability of profit: it expresses your confidence in the quality and internal consistency of the current analytical setup given the available data. Lower it when data is incomplete, indicators conflict, or the historical sample is small. Express it on a 0-100 scale (e.g. 70, not 0.7). Return null when data is insufficient to judge.
 
 Numeric fields that exist in the input (signal, technicalScore, historical statistics, scenario targets/potentials/ranges, support/resistance) must be copied exactly from the input. Do not recompute or round them differently.
 

@@ -1,8 +1,12 @@
 import { lazy, Suspense } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { createBrowserRouter, Navigate, RouterProvider, useParams } from 'react-router-dom';
 import { AppLayout } from '@/layouts/AppLayout';
 import { Skeleton } from '@/components/ui/primitives';
 import Dashboard from '@/pages/Dashboard';
+import Login from '@/pages/Login';
+import { api } from '@/services/api';
+import { useAuth } from '@/stores/auth';
 
 const CoinDetail = lazy(() => import('@/pages/CoinDetail'));
 const Backtest = lazy(() => import('@/pages/Backtest'));
@@ -50,6 +54,23 @@ const router = createBrowserRouter([
   },
 ], { basename });
 
+/** Shows the login screen when the backend requires a password. If the backend is unreachable the app renders its own banner. */
+function AuthGate({ children }: { children: React.ReactNode }) {
+  const token = useAuth((s) => s.token);
+  const { data, isPending } = useQuery({
+    queryKey: ['auth-session', token],
+    queryFn: () => api<{ authRequired: boolean; authenticated: boolean }>('/api/auth/session'),
+    staleTime: Infinity,
+  });
+  if (isPending) return <Skeleton className="m-6 h-96" />;
+  if (data?.authRequired && !data.authenticated) return <Login />;
+  return children;
+}
+
 export default function App() {
-  return <RouterProvider router={router} />;
+  return (
+    <AuthGate>
+      <RouterProvider router={router} />
+    </AuthGate>
+  );
 }

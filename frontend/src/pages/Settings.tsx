@@ -65,7 +65,7 @@ export default function Settings() {
                 <TD className="text-right">{status?.mock ? <Badge tone="warn">MOCK</Badge> : <Badge tone="blue">Binance</Badge>}</TD>
               </TR>
               <TR>
-                <TD>Claude AI</TD>
+                <TD>Model AI</TD>
                 <TD className="text-right">{status?.ai.configured ? <Badge tone="up">{status.ai.model}</Badge> : <Badge tone="warn">Belum dikonfigurasi</Badge>}</TD>
               </TR>
               <TR>

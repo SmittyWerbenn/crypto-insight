@@ -54,7 +54,7 @@ export function AiAnalysisCard({ data, onAnalyze, analyzing }: { data: CoinAnaly
 
         {ai.status === 'NOT_CONFIGURED' && (
           <Notice tone="info" className="mt-3" title="Analisa AI belum dikonfigurasi">
-            Analisa teknikal di bawah dihitung oleh engine backend. Atur ANTHROPIC_API_KEY untuk menambahkan interpretasi Claude.
+            Analisa teknikal di bawah dihitung oleh engine backend. Atur API key penyedia AI di backend untuk menambahkan interpretasi AI.
           </Notice>
         )}
         {ai.status === 'UNAVAILABLE' && (

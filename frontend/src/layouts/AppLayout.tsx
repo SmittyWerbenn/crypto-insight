@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
 import * as Dialog from '@radix-ui/react-dialog';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Bell,
   BookOpen,
@@ -12,6 +12,7 @@ import {
   History,
   LayoutDashboard,
   LineChart,
+  LogOut,
   Menu,
   Newspaper,
   Search,
@@ -25,6 +26,7 @@ import {
 import { api, API_BASE } from '@/services/api';
 import { useStatus } from '@/hooks/queries';
 import { useGlobalStream } from '@/hooks/useStream';
+import { useAuth } from '@/stores/auth';
 import { useLive } from '@/stores/live';
 import { useFx, useFxSync } from '@/stores/fx';
 import { cn } from '@/utils/cn';
@@ -197,6 +199,25 @@ function FxBadge() {
   );
 }
 
+function LogoutButton() {
+  const qc = useQueryClient();
+  const { token, setToken } = useAuth();
+  if (!token) return null;
+  return (
+    <button
+      onClick={() => {
+        setToken(null);
+        qc.clear();
+      }}
+      className="flex h-9 w-9 items-center justify-center rounded-full text-ink-2 hover:bg-bg"
+      aria-label="Keluar"
+      title="Keluar"
+    >
+      <LogOut className="h-4 w-4" />
+    </button>
+  );
+}
+
 function Header({ onMenu }: { onMenu: () => void }) {
   const { data: status } = useStatus();
   const lastEvent = useLive((s) => s.lastEvent);
@@ -234,6 +255,7 @@ function Header({ onMenu }: { onMenu: () => void }) {
         <Link to="/settings" className="flex h-9 w-9 items-center justify-center rounded-full bg-primary-soft text-primary" aria-label="Profil & pengaturan">
           <User className="h-4 w-4" />
         </Link>
+        <LogoutButton />
       </div>
     </header>
   );

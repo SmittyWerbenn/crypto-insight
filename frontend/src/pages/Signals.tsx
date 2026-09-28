@@ -12,7 +12,7 @@ export default function Signals() {
     <div className="space-y-5">
       <PageHeader
         title="Sinyal AI"
-        description="Sinyal analitis dari engine teknikal, diinterpretasi oleh Claude. Bukan instruksi trading; tidak ada yang dieksekusi otomatis."
+        description="Sinyal analitis dari engine teknikal, diinterpretasi oleh AI. Bukan instruksi trading; tidak ada yang dieksekusi otomatis."
         actions={<Segmented value={tf} onChange={setTf} options={['1h', '4h', '1d'].map((x) => ({ value: x, label: x.toUpperCase() }))} />}
       />
       <Notice tone="info">

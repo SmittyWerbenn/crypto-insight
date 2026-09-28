@@ -83,6 +83,7 @@ All variables are documented in [.env.example](.env.example). Key ones:
 | `DATABASE_URL`, `REDIS_URL` | Storage |
 | `BINANCE_API_URL`, `BINANCE_API_FALLBACK_URL`, `BINANCE_WS_URL`, `BINANCE_WS_FALLBACK_URL`, `BINANCE_FUTURES_API_URL`, `BINANCE_FUTURES_WS_URL` | Configurable Binance endpoints |
 | `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`, `ANTHROPIC_EFFORT` | Claude (backend only) |
+| `AI_PROVIDER`, `AI_COMPAT_*` | Use an OpenAI-compatible provider instead of Claude (e.g. Google Gemini free tier) |
 | `AI_LANGUAGE` | `id` (Bahasa Indonesia) or `en` |
 | `TRACKED_SYMBOLS`, `ANALYSIS_TIMEFRAME` | Coins/timeframe for the dashboard and jobs |
 | `AI_ANALYSIS_CRON`, `SIGNAL_TRACKER_CRON`, `AI_MARKET_SUMMARY_MINUTES` | Job cadence & AI cost control |
@@ -96,6 +97,8 @@ Public market data only (no API key, no trading). Spot: 24h tickers, klines (pag
 ## Claude API
 
 `claude-opus-5` by default with adaptive thinking and structured JSON output. Claude receives only backend-computed context and cannot change any number — see [docs/ai-analysis.md](docs/ai-analysis.md). Without an API key the platform works fully; AI panels state "AI analysis not configured".
+
+Alternative provider: set `AI_PROVIDER=openai-compatible` with `AI_COMPAT_API_KEY` (and optionally `AI_COMPAT_BASE_URL` / `AI_COMPAT_MODEL`). The default points at Google Gemini's OpenAI-compatible endpoint (`gemini-3.1-flash-lite`; any model from its `/models` list works), which has a free tier (key from https://aistudio.google.com/apikey). The same prompts, JSON schema, validation and consistency checks apply. If a provider does not support `json_schema` structured output, set `AI_COMPAT_JSON_MODE=json_object`.
 
 ## Database
 
@@ -148,7 +151,7 @@ Backend coverage: indicators (RSI reference data, MACD, MA/EMA, Bollinger, ATR, 
 
 ## Production Deployment
 
-See [docs/deployment.md](docs/deployment.md): TLS + auth proxy (v1 has no login), strong DB password, single backend replica, volume backups.
+See [docs/deployment.md](docs/deployment.md): TLS, `APP_PASSWORD` login, strong DB password, single backend replica, volume backups.
 
 ## Troubleshooting
 
@@ -156,7 +159,7 @@ See [docs/deployment.md](docs/deployment.md): TLS + auth proxy (v1 has no login)
 |---|---|
 | Header shows **Disconnected** / 503 `BINANCE_UNAVAILABLE` | Network blocks Binance. The backend already fails over to `data-api.binance.vision`; check `/api/status` and outbound firewall. |
 | Derivatives "unavailable" | Binance Futures is geo-restricted from your server's region. |
-| "AI analysis not configured" | Set `ANTHROPIC_API_KEY` and restart the backend. |
+| "AI analysis not configured" | Set `ANTHROPIC_API_KEY` (or `AI_PROVIDER=openai-compatible` + `AI_COMPAT_API_KEY`) and recreate the backend container. |
 | "AI analysis temporarily unavailable" | Claude timeout, rate limit or invalid output; technical data still works; see backend logs (`AI coin analysis failed`). |
 | Watchlist/Portfolio/Alerts return 503 | PostgreSQL not reachable (`DATABASE_URL`). |
 | Backtest fails with "Data quality warning" | More than 5% missing/invalid candles in the range — choose a different period/timeframe. |

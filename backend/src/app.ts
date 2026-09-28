@@ -4,6 +4,7 @@ import rateLimit from '@fastify/rate-limit';
 import Fastify, { type FastifyBaseLogger } from 'fastify';
 import { env } from './config/env.js';
 import { registerErrorHandler } from './middleware/error-handler.js';
+import { registerAuth } from './routes/auth.routes.js';
 import { analysisRoutes } from './routes/analysis.routes.js';
 import { backtestRoutes } from './routes/backtest.routes.js';
 import { marketRoutes } from './routes/market.routes.js';
@@ -25,7 +26,7 @@ export async function buildApp() {
   // API-only server: allow cross-origin reads (e.g. the GitHub Pages frontend); CORS still restricts origins.
   await app.register(helmet, { contentSecurityPolicy: false, crossOriginResourcePolicy: { policy: 'cross-origin' } });
   const origins = env.CORS_ORIGIN.split(',').map((s) => s.trim());
-  await app.register(cors, { origin: origins.includes('*') ? true : origins, methods: ['GET', 'POST', 'DELETE'] });
+  await app.register(cors, { origin: origins.includes('*') ? true : origins, methods: ['GET', 'POST', 'DELETE'], allowedHeaders: ['content-type', 'authorization'] });
   await app.register(rateLimit, {
     global: true,
     max: env.RATE_LIMIT_MAX,
@@ -34,6 +35,7 @@ export async function buildApp() {
     allowList: (req) => req.url.startsWith('/api/stream') || req.url === '/api/health',
   });
   registerErrorHandler(app);
+  registerAuth(app);
   await app.register(systemRoutes);
   await app.register(marketRoutes);
   await app.register(analysisRoutes);
