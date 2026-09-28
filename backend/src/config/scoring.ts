@@ -42,6 +42,15 @@ export const SIGNAL_LABEL: Record<SignalType, string> = {
   STRONG_SELL: 'STRONG SELL',
 };
 
+/** Indonesian display labels (UI language). */
+export const SIGNAL_LABEL_ID: Record<SignalType, string> = {
+  STRONG_BUY: 'Beli Kuat',
+  BUY: 'Beli',
+  HOLD: 'Tahan',
+  SELL: 'Jual / Kurangi',
+  STRONG_SELL: 'Jual Kuat',
+};
+
 export const SCORING_PARAMS = {
   rsiPeriod: 14,
   macd: { fast: 12, slow: 26, signal: 9 },

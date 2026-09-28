@@ -4,6 +4,7 @@ import { cva, type VariantProps } from 'class-variance-authority';
 import * as TooltipPrimitive from '@radix-ui/react-tooltip';
 import { AlertTriangle, Info, Loader2 } from 'lucide-react';
 import { cn } from '@/utils/cn';
+import { AutoGlossaryTip } from './glossary-tip';
 
 export function Card({ className, ...p }: React.HTMLAttributes<HTMLDivElement>) {
   return <div className={cn('rounded-xl border border-border bg-surface shadow-[0_1px_2px_rgba(15,23,42,0.04)]', className)} {...p} />;
@@ -100,7 +101,10 @@ Select.displayName = 'Select';
 export function Field({ label, hint, children, className }: { label: string; hint?: string; children: React.ReactNode; className?: string }) {
   return (
     <label className={cn('block', className)}>
-      <span className="mb-1 block text-xs font-medium text-ink-2">{label}</span>
+      <span className="mb-1 flex items-center gap-1 text-xs font-medium text-ink-2">
+        {label}
+        <AutoGlossaryTip label={label.replace(/\s*\(.*\)$/, '')} />
+      </span>
       {children}
       {hint && <span className="mt-1 block text-[11px] text-ink-3">{hint}</span>}
     </label>
@@ -155,7 +159,7 @@ export function Stat({ label, value, sub, tone, tip, className }: { label: strin
     <div className={cn('min-w-0', className)}>
       <div className="flex items-center gap-1 text-[11px] font-medium uppercase tracking-wide text-ink-3">
         {label}
-        {tip && <InfoTip text={tip} />}
+        {tip ? <InfoTip text={tip} /> : <AutoGlossaryTip label={label} />}
       </div>
       <div className={cn('num mt-1 truncate text-lg font-semibold text-ink', tone)}>{value}</div>
       {sub && <div className="num mt-0.5 text-xs text-ink-3">{sub}</div>}

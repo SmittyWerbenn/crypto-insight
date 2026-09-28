@@ -56,11 +56,11 @@ export function checkDataQuality(raw: Candle[], tf: Timeframe): { candles: Candl
   const spikes = Number.isFinite(medVol) ? clean.filter((c) => c.volume > medVol * 50).length : 0;
 
   const warnings: string[] = [];
-  if (duplicates) warnings.push(`${duplicates} duplicate candle(s) removed.`);
-  if (invalid) warnings.push(`${invalid} invalid OHLC candle(s) removed.`);
-  if (missing) warnings.push(`${missing} missing candle(s) across ${gaps.length} gap(s).`);
-  if (zeroVol) warnings.push(`${zeroVol} candle(s) with zero volume.`);
-  if (spikes) warnings.push(`${spikes} candle(s) with unexpected volume (>50× median).`);
+  if (duplicates) warnings.push(`${duplicates} candle duplikat dihapus.`);
+  if (invalid) warnings.push(`${invalid} candle OHLC tidak valid dihapus.`);
+  if (missing) warnings.push(`${missing} candle hilang di ${gaps.length} celah.`);
+  if (zeroVol) warnings.push(`${zeroVol} candle dengan volume nol.`);
+  if (spikes) warnings.push(`${spikes} candle dengan volume tidak wajar (>50× median).`);
 
   const expected = clean.length + missing;
   const severe = clean.length < 2 || (expected > 0 && (missing + invalid) / expected > 0.05);

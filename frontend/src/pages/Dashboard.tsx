@@ -1,12 +1,12 @@
 import { Link } from 'react-router-dom';
-import { ArrowRight, Gauge } from 'lucide-react';
+import { ArrowRight, Gauge, Target } from 'lucide-react';
 import { useAnalysis, useBacktests, useDaily, useOverview } from '@/hooks/queries';
 import { Card, CardBody, CardHeader, Notice, Skeleton, Stat, Badge } from '@/components/ui/primitives';
 import { Change, HPR_TIP, ReliabilityBadge, Sparkline } from '@/components/ui/domain';
 import { DailyTable } from '@/components/dashboard/DailyTable';
 import { MarketSummaryPanel } from '@/components/dashboard/MarketSummaryPanel';
 import { useLive } from '@/stores/live';
-import { baseAsset, fmtCompact, fmtDate, fmtPct, fmtPrice } from '@/utils/format';
+import { baseAsset, fmtCompact, fmtDate, fmtPct, fmtPriceSym } from '@/utils/format';
 import type { Mover } from '@/types/api';
 
 function MarketCards() {
@@ -14,8 +14,8 @@ function MarketCards() {
   const tickers = useLive((s) => s.tickers);
   if (error)
     return (
-      <Notice tone="error" title="Binance market data temporarily unavailable.">
-        {data?.status.lastSuccess ? `Last successful update: ${fmtDate(data.status.lastSuccess)}` : (error as Error).message}
+      <Notice tone="error" title="Data pasar Binance sementara tidak tersedia.">
+        {data?.status.lastSuccess ? `Pembaruan berhasil terakhir: ${fmtDate(data.status.lastSuccess)}` : (error as Error).message}
       </Notice>
     );
   const cards = data?.cards.slice(0, 4) ?? [];
@@ -37,7 +37,9 @@ function MarketCards() {
                 <span className="text-sm font-semibold text-ink">{c.base}</span>
                 <Change value={live?.changePct ?? c.changePct} className="text-xs" />
               </div>
-              <div className="num mt-1.5 text-lg font-semibold tracking-tight">${fmtPrice(live?.price ?? c.price)}</div>
+              <div className="num mt-1.5 truncate text-lg font-semibold tracking-tight" title={fmtPriceSym(live?.price ?? c.price)}>
+                {fmtPriceSym(live?.price ?? c.price)}
+              </div>
               <div className="mt-2 flex items-end justify-between">
                 <span className="num text-[11px] text-ink-3">Vol {fmtCompact(c.quoteVolume)}</span>
                 <Sparkline data={c.sparkline} width={80} height={26} />
@@ -49,12 +51,12 @@ function MarketCards() {
       {data && (
         <Card className="col-span-2 p-4 lg:col-span-1">
           <div className="flex items-center justify-between">
-            <span className="text-sm font-semibold text-ink">Total Market Cap</span>
+            <span className="text-sm font-semibold text-ink">Total Kapitalisasi Pasar</span>
             {data.global && <Change value={data.global.totalMarketCapChangePct} className="text-xs" />}
           </div>
           <div className="num mt-1.5 text-lg font-semibold tracking-tight">{data.global ? fmtCompact(data.global.totalMarketCap) : '–'}</div>
           <div className="num mt-2 text-[11px] text-ink-3">
-            {data.global ? `BTC dom ${data.global.btcDominance.toFixed(1)}% · ETH ${data.global.ethDominance.toFixed(1)}%` : 'Market cap source unavailable'}
+            {data.global ? `Dominasi BTC ${data.global.btcDominance.toFixed(1)}% · ETH ${data.global.ethDominance.toFixed(1)}%` : 'Sumber kapitalisasi pasar tidak tersedia'}
           </div>
         </Card>
       )}
@@ -88,28 +90,28 @@ function MarketBreadth() {
   const decPct = b.total ? (b.decliners / b.total) * 100 : 0;
   return (
     <Card>
-      <CardHeader title="Market-Wide" subtitle={`${b.total} liquid USDT pairs on ${data.source === 'mock' ? 'mock feed' : 'Binance'}`} />
+      <CardHeader title="Pasar Keseluruhan" subtitle={`${b.total} pasangan USDT likuid di ${data.source === 'mock' ? 'data mock' : 'Binance'}`} />
       <CardBody>
         <div className="flex items-center justify-between text-xs">
-          <span className="font-medium text-up">{b.advancers} advancing</span>
-          <Badge tone={b.label === 'POSITIVE' ? 'up' : b.label === 'NEGATIVE' ? 'down' : 'neutral'}>Breadth {b.label.toLowerCase()}</Badge>
-          <span className="font-medium text-down">{b.decliners} declining</span>
+          <span className="font-medium text-up">{b.advancers} naik</span>
+          <Badge tone={b.label === 'POSITIVE' ? 'up' : b.label === 'NEGATIVE' ? 'down' : 'neutral'}>Breadth {b.label === 'POSITIVE' ? 'positif' : b.label === 'NEGATIVE' ? 'negatif' : 'netral'}</Badge>
+          <span className="font-medium text-down">{b.decliners} turun</span>
         </div>
-        <div className="mt-2 flex h-2 overflow-hidden rounded-full bg-slate-100" role="img" aria-label={`${b.advancers} advancing, ${b.decliners} declining`}>
+        <div className="mt-2 flex h-2 overflow-hidden rounded-full bg-slate-100" role="img" aria-label={`${b.advancers} naik, ${b.decliners} turun`}>
           <div className="bg-up" style={{ width: `${advPct}%` }} />
           <div className="bg-white" style={{ width: 2 }} />
           <div className="ml-auto bg-down" style={{ width: `${decPct}%` }} />
         </div>
         <div className="mt-4 grid grid-cols-2 gap-4">
-          <Stat label="Median 24h change" value={<Change value={b.medianChangePct} />} />
-          <Stat label="Binance USDT volume" value={fmtCompact(data.binanceUsdtVolume24h)} />
-          <Stat label="BTC Dominance" value={data.global ? `${data.global.btcDominance.toFixed(1)}%` : '–'} />
-          <Stat label="Global 24h volume" value={data.global ? fmtCompact(data.global.totalVolume) : '–'} />
+          <Stat label="Median perubahan 24j" value={<Change value={b.medianChangePct} />} />
+          <Stat label="Volume USDT Binance" value={fmtCompact(data.binanceUsdtVolume24h)} />
+          <Stat label="Dominasi BTC" value={data.global ? `${data.global.btcDominance.toFixed(1)}%` : '–'} />
+          <Stat label="Volume global 24j" value={data.global ? fmtCompact(data.global.totalVolume) : '–'} />
         </div>
         <div className="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
-          <MoverList title="Top Gainers" items={data.gainers} metric="change" />
-          <MoverList title="Top Losers" items={data.losers} metric="change" />
-          <MoverList title="Most Volatile (range)" items={data.mostVolatile} metric="range" />
+          <MoverList title="Kenaikan Tertinggi" items={data.gainers} metric="change" />
+          <MoverList title="Penurunan Terdalam" items={data.losers} metric="change" />
+          <MoverList title="Paling Volatil (rentang)" items={data.mostVolatile} metric="range" />
         </div>
       </CardBody>
     </Card>
@@ -121,17 +123,17 @@ function HistoricalCard() {
   const h = data?.technical.historical;
   return (
     <Card>
-      <CardHeader title="Historical Performance" subtitle="BTC · similar setups to the current 4H candle" action={h && <ReliabilityBadge reliability={h.reliability} n={h.sampleSize} />} />
+      <CardHeader title="Performa Historis" subtitle="BTC · setup serupa dengan candle 4J saat ini" action={h && <ReliabilityBadge reliability={h.reliability} n={h.sampleSize} />} />
       <CardBody>
         {!h ? (
           <Skeleton className="h-24 w-full" />
         ) : (
           <>
             <div className="grid grid-cols-2 gap-4">
-              <Stat label="Similar setups" value={h.sampleSize} />
-              <Stat label="Hist. positive rate" tip={HPR_TIP} value={h.historicalPositiveRate !== null ? `${h.historicalPositiveRate}%` : '–'} />
-              <Stat label="Median 24H return" value={<Change value={h.forward.find((f) => f.hours === 24)?.median} />} />
-              <Stat label="Median 48H return" value={<Change value={h.forward.find((f) => f.hours === 48)?.median} />} />
+              <Stat label="Setup serupa" value={h.sampleSize} />
+              <Stat label="Tingkat positif historis" tip={HPR_TIP} value={h.historicalPositiveRate !== null ? `${h.historicalPositiveRate}%` : '–'} />
+              <Stat label="Median return 24J" value={<Change value={h.forward.find((f) => f.hours === 24)?.median} />} />
+              <Stat label="Median return 48J" value={<Change value={h.forward.find((f) => f.hours === 48)?.median} />} />
             </div>
             <p className="mt-3 text-[11px] text-ink-3">{h.note}</p>
           </>
@@ -148,10 +150,10 @@ function BacktestCard() {
     <Card>
       <CardHeader
         title="Backtest"
-        subtitle={last ? `${last.symbol} · ${last.timeframe} · ${last.strategy}` : 'Latest completed run'}
+        subtitle={last ? `${last.symbol} · ${last.timeframe} · ${last.strategy}` : 'Run terakhir yang selesai'}
         action={
           <Link to={last ? `/backtest?id=${last.id}` : '/backtest'} className="inline-flex items-center gap-1 text-xs font-medium text-primary">
-            Open <ArrowRight className="h-3.5 w-3.5" />
+            Buka <ArrowRight className="h-3.5 w-3.5" />
           </Link>
         }
       />
@@ -161,11 +163,11 @@ function BacktestCard() {
             <Stat label="ROI" value={<Change value={last.roi} />} />
             <Stat label="Win rate" value={last.winRate !== null ? `${last.winRate}%` : '–'} />
             <Stat label="Max drawdown" value={<span className="text-down">{fmtPct(last.maxDrawdown)}</span>} />
-            <Stat label="Trades" value={last.totalTrades ?? '–'} />
+            <Stat label="Trade" value={last.totalTrades ?? '–'} />
           </div>
         ) : (
           <div className="flex items-center gap-3 text-sm text-ink-3">
-            <Gauge className="h-5 w-5" /> No backtest yet. <Link to="/backtest" className="font-medium text-primary">Run one</Link>
+            <Gauge className="h-5 w-5" /> Belum ada backtest. <Link to="/backtest" className="font-medium text-primary">Jalankan</Link>
           </div>
         )}
       </CardBody>
@@ -178,6 +180,22 @@ export default function Dashboard() {
   return (
     <div className="space-y-5">
       <MarketCards />
+      <Link to="/planner" className="block">
+        <Card className="flex flex-col gap-3 border-primary/30 bg-gradient-to-r from-primary-soft to-surface p-4 transition-shadow hover:shadow-md sm:flex-row sm:items-center sm:justify-between sm:p-5">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary text-white">
+              <Target className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="font-semibold text-ink">Rencana Trading</div>
+              <div className="text-[13px] text-ink-2">Masukkan modal Anda — dapatkan koin yang layak dibeli, harga jual, cut loss, lama tahan, dan estimasi untung/rugi.</div>
+            </div>
+          </div>
+          <span className="inline-flex shrink-0 items-center gap-1 text-sm font-semibold text-primary">
+            Buat rencana <ArrowRight className="h-4 w-4" />
+          </span>
+        </Card>
+      </Link>
       <div className="grid gap-5 xl:grid-cols-3">
         <div className="xl:col-span-2">
           <MarketSummaryPanel />
@@ -186,11 +204,11 @@ export default function Dashboard() {
       </div>
       <Card>
         <CardHeader
-          title="AI Daily Analysis"
-          subtitle={daily.data ? `${daily.data.timeframe.toUpperCase()} closed candles · updated ${fmtDate(daily.data.generatedAt)}` : undefined}
+          title="Analisa Harian AI"
+          subtitle={daily.data ? `Candle ${daily.data.timeframe.toUpperCase()} yang sudah close · diperbarui ${fmtDate(daily.data.generatedAt)}` : undefined}
           action={
             <Link to="/signals" className="inline-flex items-center gap-1 text-xs font-medium text-primary">
-              All signals <ArrowRight className="h-3.5 w-3.5" />
+              Semua sinyal <ArrowRight className="h-3.5 w-3.5" />
             </Link>
           }
         />

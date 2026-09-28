@@ -67,7 +67,7 @@ export interface NewsResult {
  */
 export async function latestNews(currency?: string): Promise<NewsResult> {
   if (!env.CRYPTOPANIC_API_KEY) {
-    return { available: false, provider: null, items: [], sentimentBreakdown: null, message: 'News provider not configured. Set CRYPTOPANIC_API_KEY to enable news & sentiment.' };
+    return { available: false, provider: null, items: [], sentimentBreakdown: null, message: 'Penyedia berita belum dikonfigurasi. Atur CRYPTOPANIC_API_KEY untuk mengaktifkan berita & sentimen.' };
   }
   try {
     return await cache.wrap(`news:${currency ?? 'all'}`, 600, async () => {
@@ -103,7 +103,7 @@ export async function latestNews(currency?: string): Promise<NewsResult> {
       provider: 'CryptoPanic',
       items: stored.map((n) => ({ id: n.id, title: n.title, url: n.url, source: n.source, publishedAt: n.publishedAt.toISOString(), coins: n.coins as string[], sentiment: n.sentiment as NewsItem['sentiment'] })),
       sentimentBreakdown: null,
-      message: `News provider temporarily unavailable: ${(e as Error).message}`,
+      message: `Penyedia berita sementara tidak tersedia: ${(e as Error).message}`,
     };
   }
 }

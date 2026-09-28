@@ -14,6 +14,7 @@ import {
 import type { KlinesResponse } from '@/hooks/queries';
 import { useKlineStream } from '@/hooks/useStream';
 import { cn } from '@/utils/cn';
+import { fmtPrice } from '@/utils/format';
 
 const C = {
   up: '#0f8a45',
@@ -34,6 +35,9 @@ const OVERLAYS: { key: Overlay; label: string; color: string }[] = [
   { key: 'ma200', label: 'MA200', color: C.ma200 },
   { key: 'bb', label: 'Bollinger', color: C.bb },
 ];
+
+/** Data stays in USDT; the price axis and labels are formatted in the display currency. */
+const priceFormat = { type: 'custom' as const, minMove: 1e-8, formatter: (p: number) => fmtPrice(p) };
 
 const t = (ms: number) => Math.floor(ms / 1000) as UTCTimestamp;
 const line = (times: number[], vals: (number | null)[]) => times.flatMap((tm, i) => (vals[i] === null || vals[i] === undefined ? [] : [{ time: t(tm), value: vals[i] as number }]));
@@ -62,17 +66,17 @@ export function PriceChart({ symbol, timeframe, data, levels }: { symbol: string
     });
     chart.current = c;
     const times = data.candles.map((k) => k.openTime);
-    const cs = c.addSeries(CandlestickSeries, { upColor: C.up, downColor: C.down, borderVisible: false, wickUpColor: C.up, wickDownColor: C.down, priceLineVisible: true });
+    const cs = c.addSeries(CandlestickSeries, { upColor: C.up, downColor: C.down, borderVisible: false, wickUpColor: C.up, wickDownColor: C.down, priceLineVisible: true, priceFormat });
     cs.setData(data.candles.map((k) => ({ time: t(k.openTime), open: k.open, high: k.high, low: k.low, close: k.close })));
     candleSeries.current = cs;
     const ind = data.indicators;
     if (ind) {
-      if (overlays.ma20) c.addSeries(LineSeries, { color: C.ma20, lineWidth: 2, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false }).setData(line(times, ind.sma20));
-      if (overlays.ma50) c.addSeries(LineSeries, { color: C.ma50, lineWidth: 2, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false }).setData(line(times, ind.sma50));
-      if (overlays.ma200) c.addSeries(LineSeries, { color: C.ma200, lineWidth: 2, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false }).setData(line(times, ind.sma200));
+      if (overlays.ma20) c.addSeries(LineSeries, { color: C.ma20, lineWidth: 2, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false, priceFormat }).setData(line(times, ind.sma20));
+      if (overlays.ma50) c.addSeries(LineSeries, { color: C.ma50, lineWidth: 2, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false, priceFormat }).setData(line(times, ind.sma50));
+      if (overlays.ma200) c.addSeries(LineSeries, { color: C.ma200, lineWidth: 2, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false, priceFormat }).setData(line(times, ind.sma200));
       if (overlays.bb) {
         for (const k of ['bbUpper', 'bbLower'] as const)
-          c.addSeries(LineSeries, { color: C.bb, lineWidth: 1, lineStyle: LineStyle.Dashed, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false }).setData(line(times, ind[k]));
+          c.addSeries(LineSeries, { color: C.bb, lineWidth: 1, lineStyle: LineStyle.Dashed, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false, priceFormat }).setData(line(times, ind[k]));
       }
     }
     if (levels?.support) cs.createPriceLine({ price: levels.support, color: C.up, lineWidth: 1, lineStyle: LineStyle.Dotted, axisLabelVisible: true, title: 'Support' });
@@ -128,7 +132,7 @@ export function PriceChart({ symbol, timeframe, data, levels }: { symbol: string
             {o.label}
           </button>
         ))}
-        <span className="ml-auto text-[11px] text-ink-3">Panes: Price · Volume · RSI(14) · MACD(12,26,9)</span>
+        <span className="ml-auto text-[11px] text-ink-3">Panel: Harga · Volume · RSI(14) · MACD(12,26,9)</span>
       </div>
       <div ref={el} className="h-[560px] w-full" role="img" aria-label={`${symbol} ${timeframe} candlestick chart with indicators`} />
     </div>

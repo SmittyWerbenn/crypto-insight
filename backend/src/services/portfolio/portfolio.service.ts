@@ -20,7 +20,7 @@ export async function getWatchlist() {
 
 export async function addToWatchlist(symbol: string) {
   const tickers = await allUsdtTickers();
-  if (!tickers.find((t) => t.symbol === symbol)) throw new ValidationFailedError(`Unknown or unsupported symbol: ${symbol}`);
+  if (!tickers.find((t) => t.symbol === symbol)) throw new ValidationFailedError(`Simbol tidak dikenal atau tidak didukung: ${symbol}`);
   const userId = await currentUserId();
   await getDb().insert(watchlists).values({ userId, symbol }).onConflictDoNothing();
   return { symbol };
@@ -123,7 +123,7 @@ export async function getPortfolio() {
     },
     positions: open.map((p) => ({ ...p, allocationPct: value > 0 && p.currentValue !== null ? round((p.currentValue / value) * 100, 2) : null })),
     transactions: txs.map((t) => ({ ...t, executedAt: t.executedAt.toISOString() })).reverse(),
-    note: 'Manual, read-only tracking. CryptoInsight AI never places orders.',
+    note: 'Pencatatan manual, hanya-baca. CryptoInsight AI tidak pernah menempatkan order.',
   };
 }
 
@@ -133,7 +133,7 @@ export async function addTransaction(input: { symbol: string; side: 'BUY' | 'SEL
   if (input.side === 'SELL') {
     const txs = await db.select().from(portfolioTransactions).where(eq(portfolioTransactions.userId, userId));
     const held = computeHoldings(txs).get(input.symbol)?.quantity ?? 0;
-    if (input.quantity > held + 1e-12) throw new ValidationFailedError(`Cannot sell ${input.quantity} ${input.symbol}; holding ${held}`);
+    if (input.quantity > held + 1e-12) throw new ValidationFailedError(`Tidak bisa menjual ${input.quantity} ${input.symbol}; jumlah dimiliki ${held}`);
   }
   const [row] = await db
     .insert(portfolioTransactions)
@@ -149,6 +149,6 @@ export async function deleteTransaction(id: string) {
     .delete(portfolioTransactions)
     .where(and(eq(portfolioTransactions.id, id), eq(portfolioTransactions.userId, userId)))
     .returning({ id: portfolioTransactions.id });
-  if (!res.length) throw new NotFoundError('Transaction not found');
+  if (!res.length) throw new NotFoundError('Transaksi tidak ditemukan');
   await rebuild(userId);
 }

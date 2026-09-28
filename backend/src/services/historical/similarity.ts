@@ -93,7 +93,7 @@ export function findSimilarSetups(
     maxHistoricalGain: null,
     maxHistoricalLoss: null,
     reliability: 'INSUFFICIENT',
-    note: 'Insufficient data to evaluate similar setups.',
+    note: 'Data belum cukup untuk mengevaluasi setup serupa.',
   };
   if (!setup) return empty;
 
@@ -117,7 +117,7 @@ export function findSimilarSetups(
       last = i;
     }
   }
-  if (!matches.length) return { ...empty, note: 'No similar historical setups found in the available data.' };
+  if (!matches.length) return { ...empty, note: 'Tidak ditemukan setup historis serupa pada data yang tersedia.' };
 
   const ret = (i: number, h: number) => ((candles[i + h].close - candles[i].close) / candles[i].close) * 100;
   const forward = horizons.map((h) => {
@@ -151,7 +151,7 @@ export function findSimilarSetups(
     reliability,
     note:
       reliability === 'INSUFFICIENT' || reliability === 'LIMITED'
-        ? 'Limited historical sample. Performance statistics may be unreliable.'
-        : 'Historical statistics describe past behaviour and do not guarantee future results.',
+        ? 'Sampel historis terbatas. Statistik performa mungkin kurang andal.'
+        : 'Statistik historis menggambarkan perilaku masa lalu dan tidak menjamin hasil di masa depan.',
   };
 }

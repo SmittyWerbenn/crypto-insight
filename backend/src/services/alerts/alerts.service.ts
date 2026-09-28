@@ -29,7 +29,7 @@ export async function createAlert(a: { symbol: string; type: AlertType; value?: 
 export async function deleteAlert(id: string) {
   const userId = await currentUserId();
   const r = await getDb().delete(alerts).where(and(eq(alerts.id, id), eq(alerts.userId, userId))).returning({ id: alerts.id });
-  if (!r.length) throw new NotFoundError('Alert not found');
+  if (!r.length) throw new NotFoundError('Peringatan tidak ditemukan');
 }
 
 /** Pure trigger check (exported for tests). */

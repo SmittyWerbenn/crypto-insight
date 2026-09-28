@@ -8,12 +8,14 @@ import { computeSeries } from '../services/technical/engine.js';
 import { cache } from '../services/cache/cache.js';
 import { SymbolParam, TimeframeSchema } from '../utils/validation.js';
 import { fearGreed } from '../services/sentiment/sentiment.service.js';
+import { usdtIdrRate } from '../services/market/fx.service.js';
 
 const nn = (xs: number[]) => xs.map((v) => (Number.isFinite(v) ? v : null));
 
 export async function marketRoutes(app: FastifyInstance) {
   app.get('/api/market/overview', async () => cache.wrap(`overview:${marketData.source}`, 10, marketOverview));
   app.get('/api/market/global', async () => ({ global: await globalMarket(), fearGreed: await fearGreed() }));
+  app.get('/api/market/fx', async () => usdtIdrRate());
 
   app.get('/api/market/ticker/:symbol', async (req) => {
     const { symbol } = SymbolParam.parse(req.params);

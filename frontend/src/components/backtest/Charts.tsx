@@ -11,7 +11,7 @@ function Tip({ active, payload, render }: { active?: boolean; payload?: { payloa
 
 export function EquityChart({ points, initialCapital, splitTime }: { points: { time: number; equity: number }[]; initialCapital: number; splitTime?: number }) {
   return (
-    <div className="h-72" role="img" aria-label="Portfolio equity curve">
+    <div className="h-72" role="img" aria-label="Kurva ekuitas portofolio">
       <ResponsiveContainer width="100%" height="100%">
         <AreaChart data={points} margin={{ top: 8, right: 8, left: 4, bottom: 0 }}>
           <defs>
@@ -23,7 +23,7 @@ export function EquityChart({ points, initialCapital, splitTime }: { points: { t
           <CartesianGrid stroke="#eef1f6" vertical={false} />
           <XAxis dataKey="time" type="number" scale="time" domain={['dataMin', 'dataMax']} tickFormatter={tickDate} tick={AXIS} axisLine={false} tickLine={false} minTickGap={40} />
           <YAxis tickFormatter={(v) => fmtUsd(v, 0)} tick={AXIS} axisLine={false} tickLine={false} width={72} domain={['auto', 'auto']} />
-          <ReferenceLine y={initialCapital} stroke="#94a3b8" strokeDasharray="4 4" label={{ value: 'Initial capital', position: 'insideTopLeft', fontSize: 10, fill: '#8491a5' }} />
+          <ReferenceLine y={initialCapital} stroke="#94a3b8" strokeDasharray="4 4" label={{ value: 'Modal awal', position: 'insideTopLeft', fontSize: 10, fill: '#8491a5' }} />
           {splitTime && <ReferenceLine x={splitTime} stroke="#eb6834" strokeDasharray="4 4" label={{ value: 'Out-of-sample →', position: 'insideTopRight', fontSize: 10, fill: '#b45309' }} />}
           <Tooltip content={<Tip render={(p) => (<><div className="text-ink-3">{fmtDate(p.time)}</div><div className="num font-semibold">{fmtUsd(p.equity)}</div></>)} />} />
           <Area type="monotone" dataKey="equity" stroke="#2a78d6" strokeWidth={2} fill="url(#eq)" dot={false} isAnimationActive={false} />
@@ -35,7 +35,7 @@ export function EquityChart({ points, initialCapital, splitTime }: { points: { t
 
 export function DrawdownChart({ points }: { points: { time: number; drawdownPct: number; peak: number; equity: number }[] }) {
   return (
-    <div className="h-48" role="img" aria-label="Drawdown chart">
+    <div className="h-48" role="img" aria-label="Grafik drawdown">
       <ResponsiveContainer width="100%" height="100%">
         <AreaChart data={points} margin={{ top: 8, right: 8, left: 4, bottom: 0 }}>
           <CartesianGrid stroke="#eef1f6" vertical={false} />
@@ -63,7 +63,7 @@ export function DrawdownChart({ points }: { points: { time: number; drawdownPct:
 
 export function MonthlyChart({ data }: { data: { month: string; returnPct: number }[] }) {
   return (
-    <div className="h-56" role="img" aria-label="Monthly returns">
+    <div className="h-56" role="img" aria-label="Return bulanan">
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={data} margin={{ top: 8, right: 8, left: 4, bottom: 0 }} barCategoryGap={4}>
           <CartesianGrid stroke="#eef1f6" vertical={false} />
@@ -87,7 +87,7 @@ export function DistributionChart({ data }: { data: Record<string, number> }) {
   const rows = order.map((k) => ({ k, label: k.replace('_', ' '), v: data[k] ?? 0 }));
   const color: Record<string, string> = { STRONG_SELL: '#d03b3b', SELL: '#e98585', HOLD: '#94a3b8', BUY: '#5fb887', STRONG_BUY: '#0f8a45' };
   return (
-    <div className="h-48" role="img" aria-label="Signal distribution across candles">
+    <div className="h-48" role="img" aria-label="Distribusi sinyal per candle">
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={rows} margin={{ top: 8, right: 8, left: 4, bottom: 0 }}>
           <CartesianGrid stroke="#eef1f6" vertical={false} />

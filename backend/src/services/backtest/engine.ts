@@ -78,7 +78,7 @@ interface OpenPosition {
  */
 export function runBacktest(cfg: BacktestConfig, input: EngineInput): BacktestResult {
   const { candles } = input;
-  if (candles.length < 2) throw new Error('Insufficient historical data');
+  if (candles.length < 2) throw new Error('Data historis tidak mencukupi');
   if (!(cfg.positionSize > 0 && cfg.positionSize <= 1)) throw new Error('positionSize must be in (0, 1]');
   const strategy = getStrategy(cfg.strategy);
   const params: StrategyParams = { ...strategy.defaultParams, ...(cfg.params ?? {}) };
@@ -95,7 +95,7 @@ export function runBacktest(cfg: BacktestConfig, input: EngineInput): BacktestRe
       lastWindowIdx = i;
       break;
     }
-  if (lastWindowIdx < 0) throw new Error('No candles inside the requested trading window');
+  if (lastWindowIdx < 0) throw new Error('Tidak ada candle dalam periode yang diminta');
 
   let cash = cfg.initialCapital;
   let pos: OpenPosition | null = null;
@@ -200,18 +200,18 @@ export function runBacktest(cfg: BacktestConfig, input: EngineInput): BacktestRe
     if (pos) {
       const p: OpenPosition = pos;
       const isEntryCandle = p.entryIndex === t;
-      if (!isEntryCandle && p.stop !== null && c.open <= p.stop) closePosition(t, c.open, 'STOP_LOSS', 'Gap below stop — filled at open');
-      else if (!isEntryCandle && p.target !== null && c.open >= p.target) closePosition(t, c.open, 'TAKE_PROFIT', 'Gap above target — filled at open');
+      if (!isEntryCandle && p.stop !== null && c.open <= p.stop) closePosition(t, c.open, 'STOP_LOSS', 'Gap di bawah stop — terisi di harga open');
+      else if (!isEntryCandle && p.target !== null && c.open >= p.target) closePosition(t, c.open, 'TAKE_PROFIT', 'Gap di atas target — terisi di harga open');
       else {
         const hitStop = p.stop !== null && c.low <= p.stop;
         const hitTarget = p.target !== null && c.high >= p.target;
         if (hitStop && hitTarget) {
           const r = input.resolveIntrabar?.(c, p.stop!, p.target!) ?? null;
-          if (r === 'TARGET') closePosition(t, p.target!, 'TAKE_PROFIT', 'Target hit first (lower timeframe)');
-          else if (r === 'STOP') closePosition(t, p.stop!, 'STOP_LOSS', 'Stop hit first (lower timeframe)');
-          else closePosition(t, p.stop!, 'STOP_LOSS', 'Ambiguous: stop & target in same candle — conservatively assumed stop', true);
-        } else if (hitStop) closePosition(t, p.stop!, 'STOP_LOSS', 'Stop loss hit');
-        else if (hitTarget) closePosition(t, p.target!, 'TAKE_PROFIT', 'Take profit hit');
+          if (r === 'TARGET') closePosition(t, p.target!, 'TAKE_PROFIT', 'Target kena lebih dulu (timeframe lebih kecil)');
+          else if (r === 'STOP') closePosition(t, p.stop!, 'STOP_LOSS', 'Stop kena lebih dulu (timeframe lebih kecil)');
+          else closePosition(t, p.stop!, 'STOP_LOSS', 'Ambigu: stop & target di candle yang sama — diasumsikan stop (konservatif)', true);
+        } else if (hitStop) closePosition(t, p.stop!, 'STOP_LOSS', 'Stop loss kena');
+        else if (hitTarget) closePosition(t, p.target!, 'TAKE_PROFIT', 'Take profit kena');
         else {
           p.maxHigh = Math.max(p.maxHigh, c.high);
           p.minLow = Math.min(p.minLow, c.low);
@@ -225,7 +225,7 @@ export function runBacktest(cfg: BacktestConfig, input: EngineInput): BacktestRe
       const p: OpenPosition = pos;
       p.maxHigh = Math.max(p.maxHigh, c.high);
       p.minLow = Math.min(p.minLow, c.low);
-      closePosition(t, c.close, 'END_OF_DATA', 'Closed at end of test period');
+      closePosition(t, c.close, 'END_OF_DATA', 'Ditutup di akhir periode test');
     }
 
     // 3. Mark to market
@@ -265,8 +265,8 @@ export function runBacktest(cfg: BacktestConfig, input: EngineInput): BacktestRe
   }
 
   const ambiguous = trades.filter((t) => t.ambiguous).length;
-  if (ambiguous) warnings.push(`${ambiguous} trade(s) had stop and target inside one candle; resolved conservatively as stop-loss.`);
-  if (trades.length < 30) warnings.push(`Low trade count (${trades.length}). Statistics may be unreliable.`);
+  if (ambiguous) warnings.push(`${ambiguous} trade memiliki stop dan target dalam satu candle; dihitung konservatif sebagai stop loss.`);
+  if (trades.length < 30) warnings.push(`Jumlah trade sedikit (${trades.length}). Statistik mungkin kurang andal.`);
 
   const windowStart = candles.findIndex((_, i) => inWindow(i));
   const metrics = computeMetrics({
@@ -277,7 +277,7 @@ export function runBacktest(cfg: BacktestConfig, input: EngineInput): BacktestRe
     exposurePct: windowCandles ? (inPosCandles / windowCandles) * 100 : 0,
     buyAndHoldRoi: ((candles[lastWindowIdx].close - candles[windowStart].open) / candles[windowStart].open) * 100,
   });
-  if (metrics.maxDrawdown < -25) warnings.push(`High drawdown (${metrics.maxDrawdown.toFixed(1)}%).`);
+  if (metrics.maxDrawdown < -25) warnings.push(`Drawdown tinggi (${metrics.maxDrawdown.toFixed(1)}%).`);
 
   return {
     config: cfg,

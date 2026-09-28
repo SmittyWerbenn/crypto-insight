@@ -57,10 +57,10 @@ export function scoreSnapshot(s: TechnicalSnapshot, prev: TechnicalSnapshot | nu
   // RSI
   if (s.rsi !== null) {
     add('rsi', 'RSI', rsiValue(s.rsi));
-    if (s.rsi >= 50 && s.rsi < 70) factors.push({ type: 'positive', text: `RSI ${round(s.rsi, 1)} in bullish momentum zone (50–70)` });
+    if (s.rsi >= 50 && s.rsi < 70) factors.push({ type: 'positive', text: `RSI ${round(s.rsi, 1)} di zona momentum bullish (50–70)` });
     else if (s.rsi >= 70) factors.push({ type: 'negative', text: `RSI ${round(s.rsi, 1)} overbought (≥70)` });
     else if (s.rsi < 30) factors.push({ type: 'neutral', text: `RSI ${round(s.rsi, 1)} oversold (<30)` });
-    else factors.push({ type: 'negative', text: `RSI ${round(s.rsi, 1)} below 50 (weak momentum)` });
+    else factors.push({ type: 'negative', text: `RSI ${round(s.rsi, 1)} di bawah 50 (momentum lemah)` });
   } else add('rsi', 'RSI', null);
 
   // MACD
@@ -70,8 +70,8 @@ export function scoreSnapshot(s: TechnicalSnapshot, prev: TechnicalSnapshot | nu
     add('macd', 'MACD', v);
     if (s.macdState === 'bullish_cross') factors.push({ type: 'positive', text: 'MACD bullish crossover' });
     else if (s.macdState === 'bearish_cross') factors.push({ type: 'negative', text: 'MACD bearish crossover' });
-    else if (s.macdState === 'bullish') factors.push({ type: 'positive', text: 'MACD above signal line' });
-    else factors.push({ type: 'negative', text: 'MACD below signal line' });
+    else if (s.macdState === 'bullish') factors.push({ type: 'positive', text: 'MACD di atas garis sinyal' });
+    else factors.push({ type: 'negative', text: 'MACD di bawah garis sinyal' });
   } else add('macd', 'MACD', null);
 
   // MA20 vs MA50
@@ -79,8 +79,8 @@ export function scoreSnapshot(s: TechnicalSnapshot, prev: TechnicalSnapshot | nu
     const up = s.sma20 > s.sma50;
     const above = s.price > s.sma20;
     add('maFastSlow', 'MA20 vs MA50', up ? (above ? 1 : 0.6) : above ? 0.4 : 0);
-    factors.push(above ? { type: 'positive', text: 'Price above MA20' } : { type: 'negative', text: 'Price below MA20' });
-    factors.push(up ? { type: 'positive', text: 'MA20 above MA50' } : { type: 'negative', text: 'MA20 below MA50' });
+    factors.push(above ? { type: 'positive', text: 'Harga di atas MA20' } : { type: 'negative', text: 'Harga di bawah MA20' });
+    factors.push(up ? { type: 'positive', text: 'MA20 di atas MA50' } : { type: 'negative', text: 'MA20 di bawah MA50' });
   } else add('maFastSlow', 'MA20 vs MA50', null);
 
   // MA50 vs MA200
@@ -88,8 +88,8 @@ export function scoreSnapshot(s: TechnicalSnapshot, prev: TechnicalSnapshot | nu
     const up = s.sma50 > s.sma200;
     const above = s.price > s.sma50;
     add('maSlowLong', 'MA50 vs MA200', up ? (above ? 1 : 0.6) : above ? 0.35 : 0);
-    factors.push(above ? { type: 'positive', text: 'Price above MA50' } : { type: 'negative', text: 'Price below MA50' });
-    factors.push(up ? { type: 'positive', text: 'MA50 above MA200 (long-term uptrend)' } : { type: 'negative', text: 'MA50 below MA200 (long-term downtrend)' });
+    factors.push(above ? { type: 'positive', text: 'Harga di atas MA50' } : { type: 'negative', text: 'Harga di bawah MA50' });
+    factors.push(up ? { type: 'positive', text: 'MA50 di atas MA200 (tren naik jangka panjang)' } : { type: 'negative', text: 'MA50 di bawah MA200 (tren turun jangka panjang)' });
   } else add('maSlowLong', 'MA50 vs MA200', null);
 
   // Volume (direction-aware)
@@ -101,8 +101,8 @@ export function scoreSnapshot(s: TechnicalSnapshot, prev: TechnicalSnapshot | nu
     else v = r >= 1.2 ? 0 : r >= 1 ? 0.25 : 0.45;
     if (s.obvSlope !== null) v = clamp(v + (s.obvSlope > 0 ? 0.1 : -0.1), 0, 1);
     add('volume', 'Volume', v);
-    if (r >= 1) factors.push({ type: upBar ? 'positive' : 'negative', text: `Volume ${round(r, 2)}x average on ${upBar ? 'up' : 'down'} candle` });
-    else factors.push({ type: 'neutral', text: `Volume below average (${round(r, 2)}x)` });
+    if (r >= 1) factors.push({ type: upBar ? 'positive' : 'negative', text: `Volume ${round(r, 2)}x rata-rata pada candle ${upBar ? 'naik' : 'turun'}` });
+    else factors.push({ type: 'neutral', text: `Volume di bawah rata-rata (${round(r, 2)}x)` });
   } else add('volume', 'Volume', null);
 
   // Bollinger
@@ -110,8 +110,8 @@ export function scoreSnapshot(s: TechnicalSnapshot, prev: TechnicalSnapshot | nu
     const b = s.bbPercentB;
     const v = b > 1.05 ? 0.35 : b > 0.9 ? 0.6 : b >= 0.5 ? 1 : b >= 0.2 ? 0.4 : 0.2;
     add('bollinger', 'Bollinger %B', v);
-    if (b > 1) factors.push({ type: 'negative', text: 'Price above upper Bollinger Band (stretched)' });
-    else if (b < 0) factors.push({ type: 'neutral', text: 'Price below lower Bollinger Band' });
+    if (b > 1) factors.push({ type: 'negative', text: 'Harga di atas Bollinger Band atas (terlalu tinggi)' });
+    else if (b < 0) factors.push({ type: 'neutral', text: 'Harga di bawah Bollinger Band bawah' });
   } else add('bollinger', 'Bollinger %B', null);
 
   // Momentum: ROC + StochRSI
@@ -129,17 +129,17 @@ export function scoreSnapshot(s: TechnicalSnapshot, prev: TechnicalSnapshot | nu
     if (pa.breakout) v = clamp(v + 0.25, 0, 1);
     if (pa.breakdown) v = 0;
     add('priceAction', 'Price Action', v);
-    if (pa.structure === 'HH_HL') factors.push({ type: 'positive', text: 'Higher highs & higher lows' });
-    if (pa.structure === 'LH_LL') factors.push({ type: 'negative', text: 'Lower highs & lower lows' });
-    if (pa.breakout) factors.push({ type: 'positive', text: 'Breakout above 20-candle range' });
-    if (pa.breakdown) factors.push({ type: 'negative', text: 'Breakdown below 20-candle range' });
+    if (pa.structure === 'HH_HL') factors.push({ type: 'positive', text: 'Higher high & higher low (struktur naik)' });
+    if (pa.structure === 'LH_LL') factors.push({ type: 'negative', text: 'Lower high & lower low (struktur turun)' });
+    if (pa.breakout) factors.push({ type: 'positive', text: 'Breakout di atas rentang 20 candle' });
+    if (pa.breakdown) factors.push({ type: 'negative', text: 'Breakdown di bawah rentang 20 candle' });
   } else add('priceAction', 'Price Action', null);
 
   if (pa.resistance !== null && s.atr !== null && pa.resistance - s.price < s.atr) {
-    factors.push({ type: 'negative', text: 'Price approaching resistance (within 1 ATR)' });
+    factors.push({ type: 'negative', text: 'Harga mendekati resistance (dalam 1 ATR)' });
   }
   if (s.adx !== null) {
-    factors.push({ type: 'neutral', text: s.adx >= 25 ? `ADX ${round(s.adx, 1)}: trending market` : `ADX ${round(s.adx, 1)}: weak / ranging trend` });
+    factors.push({ type: 'neutral', text: s.adx >= 25 ? `ADX ${round(s.adx, 1)}: pasar sedang trending` : `ADX ${round(s.adx, 1)}: tren lemah / sideways` });
   }
 
   const score = round(comps.reduce((a, c) => a + c.points, 0), 1);

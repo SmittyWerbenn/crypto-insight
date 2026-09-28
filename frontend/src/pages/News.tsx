@@ -18,43 +18,43 @@ export default function News() {
   const b = news.data?.sentimentBreakdown;
   return (
     <div className="space-y-5">
-      <PageHeader title="News & Sentiment" description="Sentiment is supporting context only — never proof of future price movement." />
+      <PageHeader title="Berita & Sentimen" description="Sentimen hanya konteks pendukung — bukan bukti pergerakan harga ke depan." />
       <div className="grid gap-5 md:grid-cols-2">
         <Card>
-          <CardHeader title="Fear & Greed Index" subtitle="alternative.me · daily" />
+          <CardHeader title="Indeks Fear & Greed" subtitle="alternative.me · harian" />
           <CardBody>
             {fg.data?.fearGreed ? (
               <div className="flex items-end gap-6">
-                <Stat label="Today" value={<span className="text-3xl">{fg.data.fearGreed.value}</span>} sub={fg.data.fearGreed.classification} />
-                <div className="flex h-16 flex-1 items-end gap-0.5" role="img" aria-label="Fear and greed, last 30 days">
+                <Stat label="Hari ini" value={<span className="text-3xl">{fg.data.fearGreed.value}</span>} sub={fg.data.fearGreed.classification} />
+                <div className="flex h-16 flex-1 items-end gap-0.5" role="img" aria-label="Fear & greed, 30 hari terakhir">
                   {fg.data.fearGreed.history.map((h) => (
                     <div key={h.timestamp} title={`${fmtDate(h.timestamp, false)}: ${h.value}`} className="flex-1 rounded-t-sm bg-series-1/70" style={{ height: `${h.value}%` }} />
                   ))}
                 </div>
               </div>
             ) : (
-              <p className="text-sm text-ink-3">Fear & Greed data unavailable.</p>
+              <p className="text-sm text-ink-3">Data Fear & Greed tidak tersedia.</p>
             )}
           </CardBody>
         </Card>
         <Card>
-          <CardHeader title="News Sentiment" subtitle={news.data?.provider ?? 'No provider'} />
+          <CardHeader title="Sentimen Berita" subtitle={news.data?.provider ?? 'Tidak ada penyedia'} />
           <CardBody>
             {b ? (
               <div className="grid grid-cols-3 gap-4">
-                <Stat label="Positive" value={<span className="text-up">{b.positive}%</span>} />
-                <Stat label="Neutral" value={`${b.neutral}%`} />
-                <Stat label="Negative" value={<span className="text-down">{b.negative}%</span>} />
+                <Stat label="Positif" value={<span className="text-up">{b.positive}%</span>} />
+                <Stat label="Netral" value={`${b.neutral}%`} />
+                <Stat label="Negatif" value={<span className="text-down">{b.negative}%</span>} />
               </div>
             ) : (
-              <p className="text-sm text-ink-3">{news.data?.message ?? 'Loading…'}</p>
+              <p className="text-sm text-ink-3">{news.data ? 'Penyedia berita belum dikonfigurasi (CRYPTOPANIC_API_KEY).' : 'Memuat…'}</p>
             )}
           </CardBody>
         </Card>
       </div>
       {news.data && !news.data.available && <Notice tone="info">{news.data.message}</Notice>}
       <Card>
-        <CardHeader title="Latest headlines" />
+        <CardHeader title="Berita terbaru" />
         {news.data?.items.length ? (
           <ul className="divide-y divide-border">
             {news.data.items.map((n) => (
@@ -72,7 +72,7 @@ export default function News() {
             ))}
           </ul>
         ) : (
-          <EmptyState icon={<Newspaper className="h-8 w-8" />} title="No news available" />
+          <EmptyState icon={<Newspaper className="h-8 w-8" />} title="Belum ada berita" />
         )}
       </Card>
     </div>

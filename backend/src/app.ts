@@ -7,6 +7,7 @@ import { registerErrorHandler } from './middleware/error-handler.js';
 import { analysisRoutes } from './routes/analysis.routes.js';
 import { backtestRoutes } from './routes/backtest.routes.js';
 import { marketRoutes } from './routes/market.routes.js';
+import { plannerRoutes } from './routes/planner.routes.js';
 import { signalRoutes } from './routes/signals.routes.js';
 import { systemRoutes } from './routes/system.routes.js';
 import { userRoutes } from './routes/user.routes.js';
@@ -39,5 +40,6 @@ export async function buildApp() {
   await app.register(signalRoutes);
   await app.register(backtestRoutes);
   await app.register(userRoutes);
+  await app.register(plannerRoutes);
   return app;
 }

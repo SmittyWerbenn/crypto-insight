@@ -69,8 +69,8 @@ export function conditionStudy(candles: Candle[], tf: Timeframe, q: ConditionQue
     averageHoldingMs: q.horizon * TIMEFRAME_MS[tf],
     maxDrawdown: n ? round(Math.min(...matches.map((m) => m.mdd)), 2) : null,
     reliability,
-    warning: reliability === 'INSUFFICIENT' || reliability === 'LIMITED' ? 'Limited historical sample. Performance statistics may be unreliable.' : null,
+    warning: reliability === 'INSUFFICIENT' || reliability === 'LIMITED' ? 'Sampel historis terbatas. Statistik performa mungkin kurang andal.' : null,
     recent: matches.slice(-20).map((m) => ({ time: m.time, returnPct: round(m.ret, 2) })),
-    note: 'Returns exclude fees/slippage. Entry at next candle open after the matching candle; exit after the holding period.',
+    note: 'Return belum termasuk biaya/slippage. Masuk di open candle berikutnya setelah candle yang cocok; keluar setelah periode tahan.',
   };
 }

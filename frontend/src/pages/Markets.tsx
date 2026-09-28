@@ -19,15 +19,15 @@ export default function Markets() {
   const rows = useMemo(() => (list.data ?? []).filter((m) => m.symbol.includes(q.toUpperCase())), [list.data, q]);
   return (
     <div>
-      <PageHeader title="Markets" description="Binance spot USDT pairs (stablecoins & leveraged tokens excluded, ≥ $1M 24h volume)." />
-      {overview.error && <Notice tone="error" title="Binance market data temporarily unavailable.">{(overview.error as Error).message}</Notice>}
+      <PageHeader title="Pasar" description="Pasangan spot USDT Binance (tanpa stablecoin & token leverage, volume 24j ≥ $1 jt)." />
+      {overview.error && <Notice tone="error" title="Data pasar Binance sementara tidak tersedia.">{(overview.error as Error).message}</Notice>}
       <Card>
         <CardHeader
-          title={view === 'volatility' ? 'Most Volatile (24h range)' : view === 'gainers' ? 'Top Gainers' : 'Top Losers'}
+          title={view === 'volatility' ? 'Paling Volatil (rentang 24j)' : view === 'gainers' ? 'Kenaikan Tertinggi' : 'Penurunan Terdalam'}
           action={
             <div className="flex gap-2">
-              <Input placeholder="Filter…" value={q} onChange={(e) => setQ(e.target.value)} className="h-8 w-32" />
-              <Segmented<View> value={view} onChange={setView} options={[{ value: 'gainers', label: 'Gainers' }, { value: 'losers', label: 'Losers' }, { value: 'volatility', label: 'Volatile' }]} />
+              <Input placeholder="Saring…" value={q} onChange={(e) => setQ(e.target.value)} className="h-8 w-32" />
+              <Segmented<View> value={view} onChange={setView} options={[{ value: 'gainers', label: 'Naik' }, { value: 'losers', label: 'Turun' }, { value: 'volatility', label: 'Volatil' }]} />
             </div>
           }
         />
@@ -38,11 +38,11 @@ export default function Markets() {
             <THead>
               <TR>
                 <TH>#</TH>
-                <TH>Pair</TH>
-                <TH className="text-right">Price</TH>
-                <TH className="text-right">24h Change</TH>
-                <TH className="text-right">24h Range</TH>
-                <TH className="text-right">24h Volume</TH>
+                <TH>Pasangan</TH>
+                <TH className="text-right">Harga</TH>
+                <TH className="text-right">Perubahan 24j</TH>
+                <TH className="text-right">Rentang 24j</TH>
+                <TH className="text-right">Volume 24j</TH>
               </TR>
             </THead>
             <TBody>

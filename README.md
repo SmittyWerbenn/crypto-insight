@@ -17,6 +17,22 @@ AI crypto analytics, signal and backtesting platform. It pulls market data from 
 | Does it hold out-of-sample / walk-forward? | Backtest modes with overfitting warnings |
 | How have live signals performed? | Signal History + performance by coin / signal / timeframe / regime |
 
+## Fitur Andalan: Rencana Trading
+
+Halaman **Rencana Trading** (`/planner`, `POST /api/planner`): masukkan modal (Rupiah), profil risiko, dan gaya trading (1J / 4J / 1 hari). Sistem memindai 20 koin teraktif + watchlist, lalu untuk setiap koin bersinyal BELI:
+
+1. Menghitung harga beli, target jual, dan cut loss dari engine teknikal (support/resistance, swing, Bollinger, ATR).
+2. **Mensimulasikan rencana yang sama persis** pada semua sinyal BELI historis koin tersebut (target/stop %, batas waktu 24 candle, fee + slippage) → hit rate, median lama tahan, rata-rata hasil bersih per trade.
+3. Menolak rencana yang secara historis merugi setelah biaya, sampel < 10, atau (profil konservatif/moderat) risiko tinggi / target jarang tercapai — dengan alasan tertulis.
+4. Menghitung ukuran posisi agar kerugian saat cut loss ≈ 0,5% / 1% / 2% modal, lalu estimasi untung jika target, rugi jika cut loss, dan nilai harapan dalam Rupiah.
+5. Menandai aset di portofolio yang sinyalnya JUAL.
+
+Semua estimasi berasal dari data dan simulasi historis — bukan jaminan.
+
+## Bahasa & Mata Uang
+
+UI dan teks backend berbahasa Indonesia. Harga dari Binance (USDT) dikonversi ke Rupiah untuk tampilan memakai kurs USDT→IDR live (`GET /api/market/fx`; CoinGecko, cadangan ExchangeRate-API, cache 10 menit). Perhitungan internal tetap USDT. Mata uang bisa diganti ke USD di Pengaturan. **Kamus Istilah** (`/glossary`) menjelaskan 60+ istilah; ikon buku di samping label membuka penjelasannya.
+
 ## Architecture
 
 See [docs/architecture.md](docs/architecture.md).

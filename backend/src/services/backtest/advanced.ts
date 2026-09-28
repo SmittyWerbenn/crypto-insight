@@ -28,7 +28,7 @@ export function expandGrid(ranges: Record<string, ParamRange>, maxCombinations: 
   });
   const total = values.reduce((a, v) => a * v.length, 1);
   const limit = Math.min(maxCombinations, MAX_COMBINATIONS_HARD_LIMIT);
-  if (total > limit) throw new Error(`Search space has ${total} combinations, exceeding the limit of ${limit}. Narrow the ranges or increase step.`);
+  if (total > limit) throw new Error(`Ruang pencarian berisi ${total} kombinasi (combinations), melebihi batas ${limit}. Persempit rentang atau perbesar step.`);
   const out: StrategyParams[] = [];
   const rec = (i: number, acc: StrategyParams) => {
     if (i === keys.length) {
@@ -125,12 +125,12 @@ export interface OverfitAssessment {
 
 export function assessOverfitting(train: BacktestMetrics, test: BacktestMetrics): OverfitAssessment {
   const warnings: string[] = [];
-  if (train.roi > 0 && test.roi < 0) warnings.push('Profitable in-sample but loss-making out-of-sample.');
+  if (train.roi > 0 && test.roi < 0) warnings.push('Untung pada in-sample tetapi rugi pada out-of-sample.');
   if (train.sharpe !== null && test.sharpe !== null && train.sharpe > 0.5 && test.sharpe < train.sharpe * 0.4)
-    warnings.push(`Sharpe dropped from ${train.sharpe} to ${test.sharpe}.`);
+    warnings.push(`Sharpe turun dari ${train.sharpe} ke ${test.sharpe}.`);
   if (train.winRate !== null && test.winRate !== null && train.winRate - test.winRate > 15)
-    warnings.push(`Win rate dropped by ${round(train.winRate - test.winRate, 1)} percentage points.`);
-  if (test.totalTrades < 10) warnings.push(`Only ${test.totalTrades} out-of-sample trades; comparison has low statistical power.`);
+    warnings.push(`Win rate turun ${round(train.winRate - test.winRate, 1)} poin persen.`);
+  if (test.totalTrades < 10) warnings.push(`Hanya ${test.totalTrades} trade out-of-sample; perbandingan kurang kuat secara statistik.`);
   const overfit = warnings.length > 0 && !(warnings.length === 1 && test.totalTrades < 10);
   return { overfit, warnings };
 }
@@ -158,7 +158,7 @@ export function runOutOfSample(
   const to = cfg.tradeTo ?? candles[candles.length - 1].openTime;
   const window = candles.filter((c) => c.openTime >= from && c.openTime <= to);
   const splitIdx = Math.floor(window.length * opts.splitRatio);
-  if (splitIdx < 10 || window.length - splitIdx < 10) throw new Error('Insufficient historical data for in-sample/out-of-sample split');
+  if (splitIdx < 10 || window.length - splitIdx < 10) throw new Error('Data historis tidak cukup untuk pembagian in-sample/out-of-sample');
   const splitTime = window[splitIdx].openTime;
   const isCfg: BacktestConfig = { ...cfg, tradeFrom: from, tradeTo: window[splitIdx - 1].openTime };
   const oosCfg: BacktestConfig = { ...cfg, tradeFrom: splitTime, tradeTo: to };
@@ -236,7 +236,7 @@ export function runWalkForward(
       if (o.best) {
         bestParams = o.best.params;
         chosen = applyParams(cfg, o.best.params);
-      } else note = `No parameter set reached the minimum of ${opts.minTrades ?? 3} training trades; default parameters used.`;
+      } else note = `Tidak ada set parameter yang mencapai minimal ${opts.minTrades ?? 3} trade training; parameter default dipakai.`;
     }
     const train = runBacktest({ ...chosen, tradeFrom: trainFrom, tradeTo: trainTo }, input);
     const test = runBacktest({ ...chosen, initialCapital: capital, tradeFrom: testFrom, tradeTo: testTo }, input);
@@ -249,7 +249,7 @@ export function runWalkForward(
     trainMetrics.push(train.metrics);
     windows.push({ index: i, trainFrom, trainTo, testFrom, testTo, bestParams, combinationsTested: tested, note, train: train.metrics, test: test.metrics });
   }
-  if (!windows.length) throw new Error('Insufficient historical data for walk-forward analysis with the chosen train/test lengths');
+  if (!windows.length) throw new Error('Data historis tidak cukup untuk analisa walk-forward dengan panjang train/test yang dipilih');
 
   const combined = computeMetrics({
     initialCapital: cfg.initialCapital,
@@ -323,6 +323,6 @@ export function monteCarlo(trades: Trade[], initialCapital: number, opts: { iter
     drawdownThreshold: threshold,
     probDrawdownBeyondThreshold: round((dds.filter((d) => d <= -threshold).length / iterations) * 100, 1),
     probLoss: round((ends.filter((e) => e < initialCapital).length / iterations) * 100, 1),
-    note: 'Monte Carlo resamples historical trade returns. It assumes the past return distribution and is not a prediction of future results.',
+    note: 'Monte Carlo mengambil sampel ulang return trade historis. Ini mengasumsikan distribusi return masa lalu dan bukan prediksi hasil di masa depan.',
   };
 }

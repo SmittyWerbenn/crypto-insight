@@ -13,13 +13,13 @@ export function MarketSummaryPanel() {
       <CardHeader
         title={
           <span className="inline-flex items-center gap-2 text-primary">
-            <Sparkles className="h-4 w-4" /> AI Market Summary
+            <Sparkles className="h-4 w-4" /> Ringkasan Pasar AI
           </span>
         }
-        subtitle={data?.ai.generatedAt ? `Hari ini · generated ${fmtDate(data.ai.generatedAt)}${data.ai.model ? ` · ${data.ai.model}` : ''}` : 'Hari ini'}
+        subtitle={data?.ai.generatedAt ? `Hari ini · dibuat ${fmtDate(data.ai.generatedAt)}${data.ai.model ? ` · ${data.ai.model}` : ''}` : 'Hari ini'}
         action={
           <Button size="sm" variant="outline" onClick={() => refresh.mutate()} loading={refresh.isPending} disabled={data?.ai.status === 'NOT_CONFIGURED'}>
-            {!refresh.isPending && <RefreshCw className="h-3.5 w-3.5" />} Analyze Now
+            {!refresh.isPending && <RefreshCw className="h-3.5 w-3.5" />} Analisa Sekarang
           </Button>
         }
       />
@@ -31,38 +31,38 @@ export function MarketSummaryPanel() {
             <Skeleton className="h-4 w-5/6" />
           </div>
         )}
-        {error && <Notice tone="error" title="Market data unavailable">{(error as Error).message}</Notice>}
+        {error && <Notice tone="error" title="Data pasar tidak tersedia">{(error as Error).message}</Notice>}
         {data && (
           <>
             <div className="flex flex-wrap items-center gap-3">
               <div>
-                <div className="text-[11px] font-medium uppercase tracking-wide text-ink-3">Market Condition</div>
+                <div className="text-[11px] font-medium uppercase tracking-wide text-ink-3">Kondisi Pasar</div>
                 <div className="mt-1">
                   <ConditionPill condition={data.condition} />
                 </div>
               </div>
               <div className="ml-auto flex flex-wrap gap-2 text-xs text-ink-2">
-                <Badge tone="neutral">Avg score {data.context.averageTechnicalScore}</Badge>
+                <Badge tone="neutral">Rata-rata skor {data.context.averageTechnicalScore}</Badge>
                 <Badge tone={data.breadth.label === 'POSITIVE' ? 'up' : data.breadth.label === 'NEGATIVE' ? 'down' : 'neutral'}>
                   Breadth {data.breadth.advancers}↑ / {data.breadth.decliners}↓
                 </Badge>
                 {data.fearGreed && <Badge tone="blue">Fear &amp; Greed {data.fearGreed.value} · {data.fearGreed.classification}</Badge>}
                 {s?.confidence !== undefined && (
                   <Badge tone="neutral" title={CONFIDENCE_TIP}>
-                    AI confidence {s?.confidence === null ? 'N/A' : `${s?.confidence}%`}
+                    Keyakinan AI {s?.confidence === null ? 'N/A' : `${s?.confidence}%`}
                   </Badge>
                 )}
               </div>
             </div>
 
             {data.ai.status === 'NOT_CONFIGURED' && (
-              <Notice tone="info" className="mt-4" title="AI analysis not configured">
-                Set <code className="font-mono">ANTHROPIC_API_KEY</code> on the backend to enable Claude interpretation. Technical market data below is fully available.
+              <Notice tone="info" className="mt-4" title="Analisa AI belum dikonfigurasi">
+                Atur <code className="font-mono">ANTHROPIC_API_KEY</code> di backend untuk mengaktifkan interpretasi Claude. Data teknikal pasar di bawah tetap tersedia lengkap.
               </Notice>
             )}
             {data.ai.status === 'UNAVAILABLE' && (
-              <Notice tone="warn" className="mt-4" title="AI analysis temporarily unavailable.">
-                Technical market data is still available. {data.ai.generatedAt ? `Last AI analysis: ${fmtDate(data.ai.generatedAt)}.` : ''}
+              <Notice tone="warn" className="mt-4" title="Analisa AI sementara tidak tersedia.">
+                Data teknikal pasar tetap tersedia. {data.ai.generatedAt ? `Analisa AI terakhir: ${fmtDate(data.ai.generatedAt)}.` : ''}
               </Notice>
             )}
 
@@ -73,14 +73,14 @@ export function MarketSummaryPanel() {
                 <dl className="mt-4 grid gap-x-6 gap-y-3 sm:grid-cols-2 xl:grid-cols-4">
                   {(
                     [
-                      ['BTC Trend', s.btcTrend],
-                      ['Altcoins', s.altcoinTrend],
-                      ['Market Breadth', s.breadth],
+                      ['Tren BTC', s.btcTrend],
+                      ['Altcoin', s.altcoinTrend],
+                      ['Breadth Pasar', s.breadth],
                       ['Volume', s.volume],
-                      ['Volatility', s.volatility],
-                      ['Sentiment', s.sentiment],
-                      ['Derivatives', s.derivatives],
-                      ['Historical Context', s.historicalContext],
+                      ['Volatilitas', s.volatility],
+                      ['Sentimen', s.sentiment],
+                      ['Derivatif', s.derivatives],
+                      ['Konteks Historis', s.historicalContext],
                     ] as const
                   ).map(([k, v]) => (
                     <div key={k} className="border-l-2 border-primary/20 pl-3">
@@ -92,15 +92,15 @@ export function MarketSummaryPanel() {
                 <div className="mt-4 grid gap-4 md:grid-cols-2">
                   <div className="rounded-lg bg-up-soft/60 p-3">
                     <div className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-up">
-                      <Bot className="h-3.5 w-3.5" /> Opportunities
+                      <Bot className="h-3.5 w-3.5" /> Peluang
                     </div>
                     <ul className="space-y-1 text-[13px] text-ink-2">
-                      {s.opportunities.length ? s.opportunities.map((o, i) => <li key={i}>• {o}</li>) : <li className="text-ink-3">None identified.</li>}
+                      {s.opportunities.length ? s.opportunities.map((o, i) => <li key={i}>• {o}</li>) : <li className="text-ink-3">Tidak ada.</li>}
                     </ul>
                   </div>
                   <div className="rounded-lg bg-down-soft/60 p-3">
                     <div className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-down">
-                      <TriangleAlert className="h-3.5 w-3.5" /> Risks
+                      <TriangleAlert className="h-3.5 w-3.5" /> Risiko
                     </div>
                     <ul className="space-y-1 text-[13px] text-ink-2">
                       {s.risks.map((o, i) => (
@@ -120,11 +120,11 @@ export function MarketSummaryPanel() {
                 )}
                 <p className="mt-4 flex items-start gap-1.5 text-[11px] leading-relaxed text-ink-3">
                   <InfoTip text={CONFIDENCE_TIP} />
-                  {s.uncertainty} AI interpretation of backend-computed data. Historical performance does not guarantee future results.
+                  {s.uncertainty} Interpretasi AI atas data yang dihitung backend. Angka di teks AI dalam USDT. Performa historis tidak menjamin hasil di masa depan.
                 </p>
               </div>
             ) : (
-              data.ai.status === 'OK' && <p className="mt-3 text-sm text-ink-3">No summary yet.</p>
+              data.ai.status === 'OK' && <p className="mt-3 text-sm text-ink-3">Belum ada ringkasan.</p>
             )}
           </>
         )}

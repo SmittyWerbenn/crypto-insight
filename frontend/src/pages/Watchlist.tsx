@@ -31,9 +31,9 @@ export default function Watchlist() {
               if (s) add.mutate(s.endsWith('USDT') ? s : `${s}USDT`);
             }}
           >
-            <Input placeholder="e.g. LINK or LINKUSDT" value={sym} onChange={(e) => setSym(e.target.value)} className="w-48" />
+            <Input placeholder="mis. LINK atau LINKUSDT" value={sym} onChange={(e) => setSym(e.target.value)} className="w-48" />
             <Button type="submit" loading={add.isPending}>
-              Add
+              Tambah
             </Button>
           </form>
         }
@@ -41,10 +41,10 @@ export default function Watchlist() {
       {add.error && <Notice tone="error" className="mb-4">{(add.error as Error).message}</Notice>}
       {wl.error && <Notice tone="error">{(wl.error as Error).message}</Notice>}
       <Card>
-        <CardHeader title="Watched coins" />
+        <CardHeader title="Koin dipantau" />
         {wl.data && wl.data.symbols.length === 0 ? (
-          <EmptyState icon={<Star className="h-8 w-8" />} title="Your watchlist is empty">
-            Add a coin above or use the Watch button on a coin page.
+          <EmptyState icon={<Star className="h-8 w-8" />} title="Watchlist Anda kosong">
+            Tambahkan koin di atas atau gunakan tombol Pantau di halaman koin.
           </EmptyState>
         ) : (
           <DailyTable

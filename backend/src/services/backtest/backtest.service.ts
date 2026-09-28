@@ -136,9 +136,9 @@ async function loadCandles(symbol: string, tf: Timeframe, start: number, end: nu
   const step = TIMEFRAME_MS[tf];
   const raw = await getCandles(symbol, tf, { startTime: start - WARMUP_CANDLES * step, endTime: end });
   const { candles, report } = checkDataQuality(raw, tf);
-  if (report.severe) throw new BacktestDataError(`Data quality warning: ${report.warnings.join(' ')} Backtest not run.`);
+  if (report.severe) throw new BacktestDataError(`Peringatan kualitas data: ${report.warnings.join(' ')} Backtest tidak dijalankan.`);
   const inWindow = candles.filter((c) => c.openTime >= start && c.openTime <= end).length;
-  if (inWindow < 30) throw new BacktestDataError(`Insufficient historical data (${inWindow} candles in the selected period).`);
+  if (inWindow < 30) throw new BacktestDataError(`Data historis tidak mencukupi (${inWindow} candle pada periode yang dipilih).`);
   if (report.warnings.length) logger.warn({ symbol, tf, warnings: report.warnings }, 'Backtest data quality warnings');
   return { candles, quality: report };
 }
@@ -272,7 +272,7 @@ export async function executeBacktest(id: string, req: BacktestRequest, onProgre
   await onProgress(80);
 
   const mc = monteCarlo(main.trades, cfg.initialCapital, { iterations: req.monteCarlo?.iterations, drawdownThreshold: req.monteCarlo?.drawdownThreshold });
-  if (quality.warnings.length) main.warnings.unshift(...quality.warnings.map((w) => `Data quality: ${w}`));
+  if (quality.warnings.length) main.warnings.unshift(...quality.warnings.map((w) => `Kualitas data: ${w}`));
   const result = {
     mode: req.mode,
     ...slimResult(main),
@@ -305,7 +305,7 @@ async function processLocal() {
 async function failBacktest(id: string, e: unknown) {
   const msg = (e as Error).message;
   logger.warn({ id, err: msg }, 'Backtest failed');
-  await saveMeta({ id, status: 'FAILED', error: `Backtest could not be completed. Reason: ${msg}`, completedAt: new Date().toISOString() });
+  await saveMeta({ id, status: 'FAILED', error: `Backtest tidak dapat diselesaikan. Alasan: ${msg}`, completedAt: new Date().toISOString() });
 }
 
 export function startBacktestWorker() {

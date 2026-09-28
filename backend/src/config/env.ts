@@ -31,6 +31,7 @@ const EnvSchema = z.object({
   ANTHROPIC_TIMEOUT_MS: z.coerce.number().int().positive().default(120_000),
 
   COINGECKO_API_URL: z.string().default('https://api.coingecko.com/api/v3'),
+  FX_FALLBACK_API_URL: z.string().url().default('https://open.er-api.com/v6/latest/USD'),
   FEAR_GREED_API_URL: z.string().url().default('https://api.alternative.me/fng/'),
   CRYPTOPANIC_API_KEY: z.string().optional(),
 

@@ -147,7 +147,7 @@ export async function analyzeCoin(symbol: string, tf: Timeframe, ai: 'auto' | 'f
   const prev = await lastAi(symbol, tf, 'COIN');
   if (ai === 'none') {
     if (!isAiConfigured() && !env.MOCK_MODE) {
-      result.ai = { ...result.ai, status: 'NOT_CONFIGURED', error: 'AI analysis unavailable: ANTHROPIC_API_KEY is not configured. Technical market data is still available.' };
+      result.ai = { ...result.ai, status: 'NOT_CONFIGURED', error: 'Analisa AI tidak tersedia: ANTHROPIC_API_KEY belum dikonfigurasi. Data teknikal pasar tetap tersedia.' };
     }
     if (prev?.result && prev.candleTime === t.candleTime) {
       const r = prev.result as { analysis: CoinAnalysis; warnings: string[] };
@@ -168,7 +168,7 @@ export async function analyzeCoin(symbol: string, tf: Timeframe, ai: 'auto' | 'f
     }).catch((e) => logger.warn({ err: (e as Error).message }, 'recordSignal failed'));
 
   if (!isAiConfigured() && !env.MOCK_MODE) {
-    result.ai = { ...result.ai, status: 'NOT_CONFIGURED', error: 'AI analysis unavailable: ANTHROPIC_API_KEY is not configured. Technical market data is still available.' };
+    result.ai = { ...result.ai, status: 'NOT_CONFIGURED', error: 'Analisa AI tidak tersedia: ANTHROPIC_API_KEY belum dikonfigurasi. Data teknikal pasar tetap tersedia.' };
     await persistSignal(null);
     return result;
   }
@@ -212,7 +212,7 @@ export async function analyzeCoin(symbol: string, tf: Timeframe, ai: 'auto' | 'f
     result.ai = {
       ...result.ai,
       status: 'UNAVAILABLE',
-      error: 'AI analysis temporarily unavailable. Technical market data is still available.',
+      error: 'Analisa AI sementara tidak tersedia. Data teknikal pasar tetap tersedia.',
       lastSuccessfulAt: prev?.timestamp.toISOString() ?? null,
       // Show the last valid AI analysis (clearly timestamped) if one exists
       analysis: prev?.result ? (prev.result as { analysis: CoinAnalysis }).analysis : null,
@@ -386,7 +386,7 @@ export async function marketSummary(force = false) {
   const fresh = prev && Date.now() - prev.timestamp.getTime() < env.AI_MARKET_SUMMARY_MINUTES * 60_000;
   const prevOut = prev ? { ...(prev.result as { summary: MarketSummary; warnings: string[] }), model: prev.model, generatedAt: prev.timestamp.toISOString() } : null;
   if (!force && fresh && prevOut) return { ...base, ai: { status: 'OK' as const, ...prevOut, cached: true, error: null } };
-  if (!isAiConfigured() && !env.MOCK_MODE) return { ...base, ai: { status: 'NOT_CONFIGURED' as const, summary: null, warnings: [], model: null, generatedAt: null, cached: false, error: 'AI analysis unavailable: ANTHROPIC_API_KEY is not configured. Technical market data is still available.' } };
+  if (!isAiConfigured() && !env.MOCK_MODE) return { ...base, ai: { status: 'NOT_CONFIGURED' as const, summary: null, warnings: [], model: null, generatedAt: null, cached: false, error: 'Analisa AI tidak tersedia: ANTHROPIC_API_KEY belum dikonfigurasi. Data teknikal pasar tetap tersedia.' } };
   if (!isAiConfigured() && env.MOCK_MODE) {
     const summary: MarketSummary = {
       marketCondition: condition, headline: '[MOCK] Market summary placeholder', summary: '[MOCK] MOCK_MODE aktif — tidak ada panggilan AI. Semua angka di dashboard berasal dari data sintetis.', btcTrend: '[MOCK]', altcoinTrend: '[MOCK]', breadth: `[MOCK] ${breadth.advancers} naik / ${breadth.decliners} turun`, volume: '[MOCK]', volatility: '[MOCK]', sentiment: '[MOCK]', derivatives: '[MOCK]', historicalContext: '[MOCK]', opportunities: [], risks: ['[MOCK] Data sintetis'], keyLevels: [], confidence: null, uncertainty: '[MOCK]',
@@ -405,7 +405,7 @@ export async function marketSummary(force = false) {
     if (isDbReady()) await getDb().insert(aiAnalysis).values({ symbol: 'MARKET', timeframe: tf, timestamp: new Date(), kind: 'MARKET', model: claude.modelName, status: 'UNAVAILABLE', context, error: msg });
     return {
       ...base,
-      ai: { status: 'UNAVAILABLE' as const, summary: prevOut?.summary ?? null, warnings: prevOut?.warnings ?? [], model: prevOut?.model ?? null, generatedAt: prevOut?.generatedAt ?? null, cached: true, error: 'AI analysis temporarily unavailable. Technical market data is still available.', lastSuccessfulAt: prevOut?.generatedAt ?? null },
+      ai: { status: 'UNAVAILABLE' as const, summary: prevOut?.summary ?? null, warnings: prevOut?.warnings ?? [], model: prevOut?.model ?? null, generatedAt: prevOut?.generatedAt ?? null, cached: true, error: 'Analisa AI sementara tidak tersedia. Data teknikal pasar tetap tersedia.', lastSuccessfulAt: prevOut?.generatedAt ?? null },
     };
   }
 }

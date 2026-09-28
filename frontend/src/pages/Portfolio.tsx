@@ -5,7 +5,7 @@ import { api } from '@/services/api';
 import { Button, Card, CardBody, CardHeader, EmptyState, Field, Input, Notice, PageHeader, Select, Stat } from '@/components/ui/primitives';
 import { Change } from '@/components/ui/domain';
 import { Table, TBody, TD, TH, THead, TR } from '@/components/ui/table';
-import { baseAsset, fmtDate, fmtNum, fmtPrice, fmtUsd } from '@/utils/format';
+import { baseAsset, currencySymbol, displayCurrency, fmtDate, fmtNum, fmtPrice, fmtUsd, fromDisplay } from '@/utils/format';
 
 interface PortfolioResp {
   summary: { totalInvestment: number; currentValue: number; unrealizedPnl: number; dailyPnl: number; roi: number | null; realizedPnl: number };
@@ -19,7 +19,7 @@ export default function Portfolio() {
   const p = useQuery({ queryKey: ['portfolio'], queryFn: () => api<PortfolioResp>('/api/portfolio'), refetchInterval: 30_000 });
   const [form, setForm] = useState({ symbol: '', side: 'BUY', quantity: '', price: '' });
   const add = useMutation({
-    mutationFn: () => api('/api/portfolio/transaction', { method: 'POST', json: { symbol: form.symbol.toUpperCase().endsWith('USDT') ? form.symbol.toUpperCase() : `${form.symbol.toUpperCase()}USDT`, side: form.side, quantity: Number(form.quantity), price: Number(form.price) } }),
+    mutationFn: () => api('/api/portfolio/transaction', { method: 'POST', json: { symbol: form.symbol.toUpperCase().endsWith('USDT') ? form.symbol.toUpperCase() : `${form.symbol.toUpperCase()}USDT`, side: form.side, quantity: Number(form.quantity), price: fromDisplay(Number(form.price)) } }),
     onSuccess: () => {
       setForm({ symbol: '', side: 'BUY', quantity: '', price: '' });
       void qc.invalidateQueries({ queryKey: ['portfolio'] });
@@ -29,28 +29,28 @@ export default function Portfolio() {
   const s = p.data?.summary;
   return (
     <div className="space-y-5">
-      <PageHeader title="Portfolio" description="Manual, read-only tracking. CryptoInsight AI never connects to your exchange account or places orders." />
+      <PageHeader title="Portofolio" description="Pencatatan manual, hanya-baca. CryptoInsight AI tidak pernah terhubung ke akun exchange Anda atau menempatkan order." />
       {p.error && <Notice tone="error">{(p.error as Error).message}</Notice>}
       {s && (
         <Card className="p-5">
           <div className="grid grid-cols-2 gap-5 md:grid-cols-3 xl:grid-cols-6">
-            <Stat label="Total Investment" value={fmtUsd(s.totalInvestment)} />
-            <Stat label="Current Value" value={fmtUsd(s.currentValue)} />
-            <Stat label="Unrealized P&L" value={<span className={s.unrealizedPnl >= 0 ? 'text-up' : 'text-down'}>{fmtUsd(s.unrealizedPnl)}</span>} />
-            <Stat label="Daily P&L" value={<span className={s.dailyPnl >= 0 ? 'text-up' : 'text-down'}>{fmtUsd(s.dailyPnl)}</span>} />
+            <Stat label="Total Investasi" value={fmtUsd(s.totalInvestment)} />
+            <Stat label="Nilai Saat Ini" value={fmtUsd(s.currentValue)} />
+            <Stat label="Untung/Rugi Belum Terealisasi" value={<span className={s.unrealizedPnl >= 0 ? 'text-up' : 'text-down'}>{fmtUsd(s.unrealizedPnl)}</span>} />
+            <Stat label="Untung/Rugi Harian" value={<span className={s.dailyPnl >= 0 ? 'text-up' : 'text-down'}>{fmtUsd(s.dailyPnl)}</span>} />
             <Stat label="ROI" value={<Change value={s.roi} />} />
-            <Stat label="Realized P&L" value={fmtUsd(s.realizedPnl)} />
+            <Stat label="Untung/Rugi Terealisasi" value={fmtUsd(s.realizedPnl)} />
           </div>
         </Card>
       )}
       <div className="grid gap-5 xl:grid-cols-[1fr_340px]">
         <Card>
-          <CardHeader title="Holdings" />
+          <CardHeader title="Aset Dimiliki" />
           {p.data?.positions.length ? (
             <Table>
               <THead>
                 <TR>
-                  {['Coin', 'Quantity', 'Avg Buy', 'Price', '24h', 'Value', 'Unrealized P&L', 'Allocation'].map((h, i) => (
+                  {['Koin', 'Jumlah', 'Rata-rata Beli', 'Harga', '24h', 'Nilai', 'Untung/Rugi Belum Terealisasi', 'Alokasi'].map((h, i) => (
                     <TH key={h} className={i ? 'text-right' : ''}>
                       {h}
                     </TH>
@@ -77,13 +77,13 @@ export default function Portfolio() {
               </TBody>
             </Table>
           ) : (
-            <EmptyState icon={<Briefcase className="h-8 w-8" />} title="No holdings yet">
-              Record a buy transaction to start tracking.
+            <EmptyState icon={<Briefcase className="h-8 w-8" />} title="Belum ada aset">
+              Catat transaksi beli untuk mulai melacak.
             </EmptyState>
           )}
         </Card>
         <Card>
-          <CardHeader title="Add transaction" />
+          <CardHeader title="Tambah transaksi" />
           <CardBody>
             <form
               className="space-y-3"
@@ -93,41 +93,41 @@ export default function Portfolio() {
               }}
             >
               <div className="grid grid-cols-2 gap-3">
-                <Field label="Coin">
+                <Field label="Koin">
                   <Input required placeholder="BTC" value={form.symbol} onChange={(e) => setForm({ ...form, symbol: e.target.value.replace(/[^A-Za-z0-9]/g, '') })} />
                 </Field>
-                <Field label="Side">
+                <Field label="Jenis">
                   <Select value={form.side} onChange={(e) => setForm({ ...form, side: e.target.value })}>
                     <option>BUY</option>
                     <option>SELL</option>
                   </Select>
                 </Field>
-                <Field label="Quantity">
+                <Field label="Jumlah">
                   <Input required type="number" step="any" min="0" value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })} />
                 </Field>
-                <Field label="Price (USDT)">
+                <Field label={`Harga per koin (${currencySymbol()})`} hint={displayCurrency() === 'IDR' ? 'Dikonversi ke USDT dengan kurs saat ini' : undefined}>
                   <Input required type="number" step="any" min="0" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} />
                 </Field>
               </div>
               {add.error && <Notice tone="error">{(add.error as Error).message}</Notice>}
               <Button type="submit" className="w-full" loading={add.isPending}>
-                Save
+                Simpan
               </Button>
             </form>
           </CardBody>
         </Card>
       </div>
       <Card>
-        <CardHeader title="Transactions" />
+        <CardHeader title="Transaksi" />
         {p.data?.transactions.length ? (
           <Table>
             <THead>
               <TR>
-                <TH>Date</TH>
-                <TH>Coin</TH>
-                <TH>Side</TH>
-                <TH className="text-right">Quantity</TH>
-                <TH className="text-right">Price</TH>
+                <TH>Tanggal</TH>
+                <TH>Koin</TH>
+                <TH>Jenis</TH>
+                <TH className="text-right">Jumlah</TH>
+                <TH className="text-right">Harga</TH>
                 <TH className="text-right">Total</TH>
                 <TH />
               </TR>
@@ -142,7 +142,7 @@ export default function Portfolio() {
                   <TD className="text-right">{fmtPrice(t.price)}</TD>
                   <TD className="text-right">{fmtUsd(t.quantity * t.price)}</TD>
                   <TD className="text-right">
-                    <Button size="icon" variant="danger" onClick={() => del.mutate(t.id)} aria-label="Delete transaction">
+                    <Button size="icon" variant="danger" onClick={() => del.mutate(t.id)} aria-label="Hapus transaksi">
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </TD>
@@ -151,7 +151,7 @@ export default function Portfolio() {
             </TBody>
           </Table>
         ) : (
-          <p className="px-5 pb-5 text-sm text-ink-3">No transactions.</p>
+          <p className="px-5 pb-5 text-sm text-ink-3">Belum ada transaksi.</p>
         )}
       </Card>
     </div>

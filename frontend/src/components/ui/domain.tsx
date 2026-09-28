@@ -4,7 +4,7 @@ import { cn } from '@/utils/cn';
 import { fmtPct } from '@/utils/format';
 import { Badge, InfoTip } from './primitives';
 
-const SIGNAL_LABEL: Record<Signal, string> = { STRONG_BUY: 'Strong Buy', BUY: 'Buy', HOLD: 'Hold', SELL: 'Sell / Reduce', STRONG_SELL: 'Strong Sell' };
+const SIGNAL_LABEL: Record<Signal, string> = { STRONG_BUY: 'Beli Kuat', BUY: 'Beli', HOLD: 'Tahan', SELL: 'Jual / Kurangi', STRONG_SELL: 'Jual Kuat' };
 
 export function SignalBadge({ signal, className }: { signal: Signal; className?: string }) {
   const tone = signal === 'STRONG_BUY' || signal === 'BUY' ? 'up' : signal === 'HOLD' ? 'blue' : 'down';
@@ -17,7 +17,7 @@ export function SignalBadge({ signal, className }: { signal: Signal; className?:
   );
 }
 
-const RISK_LABEL: Record<string, string> = { LOW: 'Low', LOW_MEDIUM: 'Low-Med', MEDIUM: 'Medium', HIGH: 'High' };
+const RISK_LABEL: Record<string, string> = { LOW: 'Rendah', LOW_MEDIUM: 'Rendah-Sedang', MEDIUM: 'Sedang', HIGH: 'Tinggi' };
 export function RiskBadge({ level }: { level: string }) {
   const tone = level === 'HIGH' ? 'down' : level === 'MEDIUM' ? 'warn' : 'neutral';
   return (
@@ -29,11 +29,11 @@ export function RiskBadge({ level }: { level: string }) {
 }
 
 export const CONDITION_LABEL: Record<MarketCondition, string> = {
-  BULLISH_STRONG: 'Bullish Strong',
-  BULLISH_MODERATE: 'Bullish Moderate',
-  NEUTRAL: 'Neutral',
-  BEARISH_MODERATE: 'Bearish Moderate',
-  BEARISH_STRONG: 'Bearish Strong',
+  BULLISH_STRONG: 'Bullish Kuat',
+  BULLISH_MODERATE: 'Bullish Moderat',
+  NEUTRAL: 'Netral',
+  BEARISH_MODERATE: 'Bearish Moderat',
+  BEARISH_STRONG: 'Bearish Kuat',
 };
 
 export function ConditionPill({ condition }: { condition: MarketCondition }) {
@@ -59,7 +59,7 @@ export function ScoreBar({ score, compact }: { score: number; compact?: boolean 
     <div className="flex items-center gap-2">
       <span className="num w-9 text-right font-semibold">{score.toFixed(0)}</span>
       {!compact && (
-        <div className="relative h-1.5 w-20 rounded-full bg-slate-100" role="meter" aria-valuenow={score} aria-valuemin={0} aria-valuemax={100} aria-label="Technical score">
+        <div className="relative h-1.5 w-20 rounded-full bg-slate-100" role="meter" aria-valuenow={score} aria-valuemin={0} aria-valuemax={100} aria-label="Skor teknikal">
           <div className={cn('h-full rounded-full', color)} style={{ width: `${Math.max(2, score)}%` }} />
           {[30, 45, 65, 80].map((t) => (
             <span key={t} className="absolute top-0 h-1.5 w-0.5 bg-white" style={{ left: `${t}%` }} />
@@ -71,18 +71,18 @@ export function ScoreBar({ score, compact }: { score: number; compact?: boolean 
 }
 
 export function Confidence({ value }: { value: number | null | undefined }) {
-  if (value === null || value === undefined) return <span className="text-ink-3" title="Not available">N/A</span>;
+  if (value === null || value === undefined) return <span className="text-ink-3" title="Tidak tersedia">N/A</span>;
   return <span className="num font-medium">{value.toFixed(0)}%</span>;
 }
 
-export const CONFIDENCE_TIP = 'AI confidence reflects the quality and consistency of the current analytical setup based on available data. It is NOT the probability that price will rise or that a trade will be profitable.';
-export const SCORE_TIP = 'Technical score is a weighted checklist of indicators (0–100). It is NOT a probability.';
-export const HPR_TIP = 'Share of similar historical setups that had a positive return after the outcome horizon. Historical behaviour, not a forecast.';
+export const CONFIDENCE_TIP = 'Keyakinan AI mencerminkan kualitas dan konsistensi setup analisa saat ini berdasarkan data yang tersedia. BUKAN probabilitas harga naik atau trade akan untung.';
+export const SCORE_TIP = 'Skor teknikal adalah checklist indikator berbobot (0–100). BUKAN probabilitas.';
+export const HPR_TIP = 'Persentase setup historis serupa yang memberi return positif setelah horizon hasil. Perilaku historis, bukan ramalan.';
 
 export function ConfidenceHeader() {
   return (
     <span className="inline-flex items-center gap-1">
-      AI Confidence <InfoTip text={CONFIDENCE_TIP} />
+      Keyakinan AI <InfoTip text={CONFIDENCE_TIP} />
     </span>
   );
 }
@@ -100,11 +100,13 @@ export function Sparkline({ data, width = 96, height = 28, className }: { data: 
   );
 }
 
+const RELIABILITY_LABEL: Record<string, string> = { GOOD: 'andal', MODERATE: 'cukup', LIMITED: 'terbatas', INSUFFICIENT: 'kurang' };
+
 export function ReliabilityBadge({ reliability, n }: { reliability: string; n: number }) {
   const tone = reliability === 'GOOD' ? 'up' : reliability === 'MODERATE' ? 'blue' : 'warn';
   return (
     <Badge tone={tone} title={`Sample size ${n}`}>
-      n={n} · {reliability.toLowerCase()}
+      n={n} · {RELIABILITY_LABEL[reliability] ?? reliability.toLowerCase()}
     </Badge>
   );
 }

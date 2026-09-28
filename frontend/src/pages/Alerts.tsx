@@ -4,18 +4,20 @@ import { Bell, Trash2 } from 'lucide-react';
 import { api } from '@/services/api';
 import { Badge, Button, Card, CardBody, CardHeader, EmptyState, Field, Input, Notice, PageHeader, Select } from '@/components/ui/primitives';
 import { Table, TBody, TD, TH, THead, TR } from '@/components/ui/table';
-import { baseAsset, fmtDate, fmtNum } from '@/utils/format';
+import { baseAsset, currencySymbol, fmtDate, fmtNum, fmtPriceSym, fromDisplay } from '@/utils/format';
+
+const isPrice = (type: string) => type.startsWith('PRICE_');
 
 const TYPES: { value: string; label: string; needsValue: boolean }[] = [
-  { value: 'PRICE_ABOVE', label: 'Price >', needsValue: true },
-  { value: 'PRICE_BELOW', label: 'Price <', needsValue: true },
+  { value: 'PRICE_ABOVE', label: 'Harga >', needsValue: true },
+  { value: 'PRICE_BELOW', label: 'Harga <', needsValue: true },
   { value: 'RSI_ABOVE', label: 'RSI >', needsValue: true },
   { value: 'RSI_BELOW', label: 'RSI <', needsValue: true },
-  { value: 'SCORE_ABOVE', label: 'Technical Score >', needsValue: true },
-  { value: 'SCORE_BELOW', label: 'Technical Score <', needsValue: true },
-  { value: 'SIGNAL_BUY', label: 'Signal = BUY (or stronger)', needsValue: false },
-  { value: 'SIGNAL_STRONG_BUY', label: 'Signal = STRONG BUY', needsValue: false },
-  { value: 'SIGNAL_SELL', label: 'Signal = SELL (or stronger)', needsValue: false },
+  { value: 'SCORE_ABOVE', label: 'Skor Teknikal >', needsValue: true },
+  { value: 'SCORE_BELOW', label: 'Skor Teknikal <', needsValue: true },
+  { value: 'SIGNAL_BUY', label: 'Sinyal = BELI (atau lebih kuat)', needsValue: false },
+  { value: 'SIGNAL_STRONG_BUY', label: 'Sinyal = BELI KUAT', needsValue: false },
+  { value: 'SIGNAL_SELL', label: 'Sinyal = JUAL (atau lebih kuat)', needsValue: false },
 ];
 
 interface AlertRow {
@@ -37,7 +39,9 @@ export default function Alerts() {
   const add = useMutation({
     mutationFn: () => {
       const s = f.symbol.toUpperCase();
-      return api('/api/alerts', { method: 'POST', json: { symbol: s.endsWith('USDT') ? s : `${s}USDT`, type: f.type, value: t.needsValue ? Number(f.value) : null } });
+      // Price thresholds are entered in the display currency; the backend compares in USDT
+      const value = !t.needsValue ? null : isPrice(f.type) ? fromDisplay(Number(f.value)) : Number(f.value);
+      return api('/api/alerts', { method: 'POST', json: { symbol: s.endsWith('USDT') ? s : `${s}USDT`, type: f.type, value } });
     },
     onSuccess: () => {
       setF({ ...f, value: '' });
@@ -47,9 +51,9 @@ export default function Alerts() {
   const del = useMutation({ mutationFn: (id: string) => api(`/api/alerts/${id}`, { method: 'DELETE' }), onSuccess: () => qc.invalidateQueries({ queryKey: ['alerts'] }) });
   return (
     <div className="space-y-5">
-      <PageHeader title="Alerts" description="Price alerts are checked on live ticks; RSI, score and signal alerts on each analysis cycle (4H timeframe). One-shot." />
+      <PageHeader title="Peringatan" description="Peringatan harga dicek dari harga live; peringatan RSI, skor, dan sinyal dicek setiap siklus analisa (timeframe 4J). Sekali terpicu." />
       <Card>
-        <CardHeader title="New alert" />
+        <CardHeader title="Peringatan baru" />
         <CardBody>
           <form
             className="grid grid-cols-2 items-end gap-3 md:grid-cols-4"
@@ -58,10 +62,10 @@ export default function Alerts() {
               add.mutate();
             }}
           >
-            <Field label="Coin">
+            <Field label="Koin">
               <Input required value={f.symbol} onChange={(e) => setF({ ...f, symbol: e.target.value.replace(/[^A-Za-z0-9]/g, '') })} />
             </Field>
-            <Field label="Condition">
+            <Field label="Kondisi">
               <Select value={f.type} onChange={(e) => setF({ ...f, type: e.target.value })}>
                 {TYPES.map((x) => (
                   <option key={x.value} value={x.value}>
@@ -70,28 +74,28 @@ export default function Alerts() {
                 ))}
               </Select>
             </Field>
-            <Field label="Value">
+            <Field label={isPrice(f.type) ? `Price (${currencySymbol()})` : 'Nilai'}>
               <Input type="number" step="any" required={t.needsValue} disabled={!t.needsValue} value={f.value} onChange={(e) => setF({ ...f, value: e.target.value })} />
             </Field>
             <Button type="submit" loading={add.isPending}>
-              Create alert
+              Buat peringatan
             </Button>
           </form>
           {add.error && <Notice tone="error" className="mt-3">{(add.error as Error).message}</Notice>}
         </CardBody>
       </Card>
       <Card>
-        <CardHeader title="Your alerts" />
+        <CardHeader title="Peringatan Anda" />
         {list.error && <Notice tone="error" className="mx-5 mb-4">{(list.error as Error).message}</Notice>}
         {list.data?.length ? (
           <Table>
             <THead>
               <TR>
-                <TH>Coin</TH>
-                <TH>Condition</TH>
+                <TH>Koin</TH>
+                <TH>Kondisi</TH>
                 <TH>Status</TH>
-                <TH>Triggered</TH>
-                <TH>Created</TH>
+                <TH>Terpicu</TH>
+                <TH>Dibuat</TH>
                 <TH />
               </TR>
             </THead>
@@ -100,13 +104,13 @@ export default function Alerts() {
                 <TR key={a.id}>
                   <TD className="font-semibold">{baseAsset(a.symbol)}</TD>
                   <TD>
-                    {TYPES.find((x) => x.value === a.type)?.label ?? a.type} {a.value !== null ? fmtNum(a.value, 8) : ''}
+                    {TYPES.find((x) => x.value === a.type)?.label ?? a.type} {a.value !== null ? (isPrice(a.type) ? fmtPriceSym(a.value) : fmtNum(a.value, 2)) : ''}
                   </TD>
-                  <TD>{a.active ? <Badge tone="blue">Active</Badge> : <Badge tone="up">Triggered</Badge>}</TD>
-                  <TD>{a.triggeredAt ? `${fmtDate(a.triggeredAt)} @ ${fmtNum(a.triggeredValue, 8)}` : '–'}</TD>
+                  <TD>{a.active ? <Badge tone="blue">Aktif</Badge> : <Badge tone="up">Terpicu</Badge>}</TD>
+                  <TD>{a.triggeredAt ? `${fmtDate(a.triggeredAt)} @ ${isPrice(a.type) ? fmtPriceSym(a.triggeredValue) : fmtNum(a.triggeredValue, 2)}` : '–'}</TD>
                   <TD>{fmtDate(a.createdAt)}</TD>
                   <TD className="text-right">
-                    <Button size="icon" variant="danger" onClick={() => del.mutate(a.id)} aria-label="Delete alert">
+                    <Button size="icon" variant="danger" onClick={() => del.mutate(a.id)} aria-label="Hapus peringatan">
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </TD>
@@ -115,7 +119,7 @@ export default function Alerts() {
             </TBody>
           </Table>
         ) : (
-          <EmptyState icon={<Bell className="h-8 w-8" />} title="No alerts" />
+          <EmptyState icon={<Bell className="h-8 w-8" />} title="Belum ada peringatan" />
         )}
       </Card>
     </div>

@@ -7,7 +7,7 @@ import { IdParam } from '../utils/validation.js';
 
 async function mustGet(id: string) {
   const b = await getBacktest(id);
-  if (!b) throw new NotFoundError('Backtest not found');
+  if (!b) throw new NotFoundError('Backtest tidak ditemukan');
   return b;
 }
 

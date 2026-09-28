@@ -54,10 +54,10 @@ export function evaluateOutcome(
     if (hitTarget && hitStop) {
       const r = resolve?.(c) ?? null;
       if (r === null) {
-        return { ...base, status: 'AMBIGUOUS', exitPrice: null, exitTime: c.openTime, returnPercent: null, mfe: Math.max(mfe, dirRet(sig.targetPrice)), mae: Math.min(mae, dirRet(sig.stopPrice)), note: 'Target and stop touched within the same candle; order could not be determined from lower-timeframe data.' };
+        return { ...base, status: 'AMBIGUOUS', exitPrice: null, exitTime: c.openTime, returnPercent: null, mfe: Math.max(mfe, dirRet(sig.targetPrice)), mae: Math.min(mae, dirRet(sig.stopPrice)), note: 'Target dan stop tersentuh dalam candle yang sama; urutannya tidak dapat ditentukan dari data timeframe lebih kecil.' };
       }
       const px = r === 'TARGET' ? sig.targetPrice : sig.stopPrice;
-      return { ...base, status: r === 'TARGET' ? 'TARGET_HIT' : 'STOP_HIT', exitPrice: px, exitTime: c.openTime, returnPercent: dirRet(px), mfe: Math.max(mfe, dirRet(sig.targetPrice)), mae: Math.min(mae, r === 'STOP' ? dirRet(sig.stopPrice) : dirRet(adv)), note: 'Resolved with lower-timeframe candles.' };
+      return { ...base, status: r === 'TARGET' ? 'TARGET_HIT' : 'STOP_HIT', exitPrice: px, exitTime: c.openTime, returnPercent: dirRet(px), mfe: Math.max(mfe, dirRet(sig.targetPrice)), mae: Math.min(mae, r === 'STOP' ? dirRet(sig.stopPrice) : dirRet(adv)), note: 'Ditentukan dengan candle timeframe lebih kecil.' };
     }
     if (hitStop) return { ...base, status: 'STOP_HIT', exitPrice: sig.stopPrice, exitTime: c.openTime, returnPercent: dirRet(sig.stopPrice), mfe: Math.max(mfe, dirRet(fav)), mae: Math.min(mae, dirRet(sig.stopPrice)), note: null };
     if (hitTarget) return { ...base, status: 'TARGET_HIT', exitPrice: sig.targetPrice, exitTime: c.openTime, returnPercent: dirRet(sig.targetPrice), mfe: Math.max(mfe, dirRet(sig.targetPrice)), mae: Math.min(mae, dirRet(adv)), note: null };
@@ -66,7 +66,7 @@ export function evaluateOutcome(
   }
   if (cs.length >= window) {
     const last = cs[cs.length - 1];
-    return { status: 'TIMEOUT', exitPrice: last.close, exitTime: last.closeTime, returnPercent: dirRet(last.close), mfe, mae, candlesEvaluated: cs.length, note: `No target/stop within ${window} candles` };
+    return { status: 'TIMEOUT', exitPrice: last.close, exitTime: last.closeTime, returnPercent: dirRet(last.close), mfe, mae, candlesEvaluated: cs.length, note: `Target/stop tidak tercapai dalam ${window} candle` };
   }
   return { status: cs.length ? 'OPEN' : 'PENDING', exitPrice: null, exitTime: null, returnPercent: null, mfe, mae, candlesEvaluated: cs.length, note: null };
 }

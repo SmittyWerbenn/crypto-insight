@@ -37,7 +37,7 @@ export function computeLevels(s: TechnicalSnapshot, signal: SignalType): TradeLe
   if (signal === 'SELL' || signal === 'STRONG_SELL') {
     const candidates = [...pa.supportLevels, pa.lastSwingLow ?? NaN, s.bbLower ?? NaN].filter((v) => Number.isFinite(v) && v < price - 0.5 * atr);
     const target = candidates.length ? Math.max(...candidates.filter((v) => v <= price - atr).concat(price - TARGET_CONFIG.atrTargetMultiplier * atr)) : price - TARGET_CONFIG.atrTargetMultiplier * atr;
-    method.push(candidates.length ? 'Bearish target: nearest support ≥1 ATR below price' : 'Bearish target: 3×ATR below price');
+    method.push(candidates.length ? 'Target bearish: support terdekat ≥1 ATR di bawah harga' : 'Target bearish: 3×ATR di bawah harga');
     const invalidation = pa.resistance !== null && pa.resistance - price < 3 * atr ? pa.resistance + 0.25 * atr : price + TARGET_CONFIG.atrStopMultiplier * atr;
     return {
       direction: 'SHORT_OR_REDUCE',
@@ -55,20 +55,20 @@ export function computeLevels(s: TechnicalSnapshot, signal: SignalType): TradeLe
   let stop: number;
   if (pa.support !== null && price - pa.support >= 0.5 * atr && price - pa.support <= 3 * atr) {
     stop = pa.support - 0.25 * atr;
-    method.push('Stop: below nearest confirmed support (−0.25 ATR buffer)');
+    method.push('Stop: di bawah support terdekat yang terkonfirmasi (buffer −0,25 ATR)');
   } else {
     stop = price - TARGET_CONFIG.atrStopMultiplier * atr;
-    method.push(`Stop: ${TARGET_CONFIG.atrStopMultiplier}×ATR below price`);
+    method.push(`Stop: ${TARGET_CONFIG.atrStopMultiplier}×ATR di bawah harga`);
   }
   const risk = price - stop;
   const candidates = [...pa.resistanceLevels, pa.lastSwingHigh ?? NaN, s.bbUpper ?? NaN]
     .filter((v) => Number.isFinite(v) && v > price)
     .sort((a, b) => a - b);
   let target = candidates.find((c) => c - price >= TARGET_CONFIG.minRiskReward * risk);
-  if (target !== undefined) method.push(`Target: first resistance/swing/band level with R:R ≥ ${TARGET_CONFIG.minRiskReward}`);
+  if (target !== undefined) method.push(`Target: level resistance/swing/band pertama dengan R:R ≥ ${TARGET_CONFIG.minRiskReward}`);
   else {
     target = price + Math.max(TARGET_CONFIG.atrTargetMultiplier * atr, TARGET_CONFIG.minRiskReward * risk);
-    method.push('Target: ATR projection (no qualifying resistance above)');
+    method.push('Target: proyeksi ATR (tidak ada resistance yang memenuhi di atas)');
   }
   return {
     direction: 'LONG',
@@ -95,13 +95,13 @@ export function computeScenarios(s: TechnicalSnapshot): Scenario | null {
     bullish: {
       target: round(nextRes, 8),
       potential: pct(price, nextRes),
-      trigger: `Close above resistance ${Number(res.toPrecision(6))} with volume above average`,
+      trigger: `Close di atas resistance ${Number(res.toPrecision(6))} dengan volume di atas rata-rata`,
     },
-    base: { low: round(sup, 8), high: round(res, 8), description: 'Range between nearest support and resistance' },
+    base: { low: round(sup, 8), high: round(res, 8), description: 'Rentang antara support dan resistance terdekat' },
     bearish: {
       target: round(nextSup, 8),
       potential: pct(price, nextSup),
-      trigger: `Close below support ${Number(sup.toPrecision(6))}`,
+      trigger: `Close di bawah support ${Number(sup.toPrecision(6))}`,
     },
   };
 }

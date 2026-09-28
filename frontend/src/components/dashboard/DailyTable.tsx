@@ -3,7 +3,7 @@ import type { DailyRow } from '@/types/api';
 import { Change, Confidence, ConfidenceHeader, HPR_TIP, RiskBadge, SCORE_TIP, ScoreBar, SignalBadge } from '@/components/ui/domain';
 import { InfoTip, Skeleton } from '@/components/ui/primitives';
 import { Table, TBody, TD, TH, THead, TR } from '@/components/ui/table';
-import { baseAsset, fmtPct, fmtPrice } from '@/utils/format';
+import { baseAsset, currencySymbol, fmtPct, fmtPrice } from '@/utils/format';
 import { useLive } from '@/stores/live';
 
 export function DailyTable({ rows, loading, extra }: { rows: DailyRow[] | undefined; loading?: boolean; extra?: (r: DailyRow) => React.ReactNode }) {
@@ -16,7 +16,7 @@ export function DailyTable({ rows, loading, extra }: { rows: DailyRow[] | undefi
         ))}
       </div>
     );
-  if (!rows?.length) return <div className="px-5 pb-5 text-sm text-ink-3">No analysis available.</div>;
+  if (!rows?.length) return <div className="px-5 pb-5 text-sm text-ink-3">Belum ada analisa.</div>;
   return (
     <>
       {/* Desktop / tablet table */}
@@ -24,26 +24,26 @@ export function DailyTable({ rows, loading, extra }: { rows: DailyRow[] | undefi
         <Table>
           <THead>
             <TR>
-              <TH>Coin</TH>
-              <TH className="text-right">Price</TH>
+              <TH>Koin</TH>
+              <TH className="text-right">Harga ({currencySymbol()})</TH>
               <TH className="text-right">24h</TH>
-              <TH>Signal</TH>
+              <TH>Sinyal</TH>
               <TH>
                 <span className="inline-flex items-center gap-1">
-                  Technical Score <InfoTip text={SCORE_TIP} />
+                  Skor Teknikal <InfoTip text={SCORE_TIP} />
                 </span>
               </TH>
               <TH className="text-right">
                 <ConfidenceHeader />
               </TH>
-              <TH className="text-right">Upside</TH>
-              <TH className="text-right">Downside</TH>
+              <TH className="text-right">Potensi naik</TH>
+              <TH className="text-right">Potensi turun</TH>
               <TH className="text-right">
                 <span className="inline-flex items-center gap-1">
-                  Hist. Win Rate <InfoTip text={HPR_TIP} />
+                  Win Rate Hist. <InfoTip text={HPR_TIP} />
                 </span>
               </TH>
-              <TH>Risk</TH>
+              <TH>Risiko</TH>
               {extra && <TH />}
             </TR>
           </THead>
@@ -109,23 +109,23 @@ export function DailyTable({ rows, loading, extra }: { rows: DailyRow[] | undefi
               </div>
               <div className="mt-2 grid grid-cols-3 gap-2 text-xs">
                 <div>
-                  <div className="text-ink-3">Score</div>
+                  <div className="text-ink-3">Skor</div>
                   <div className="num font-semibold">{r.technicalScore.toFixed(0)}/100</div>
                 </div>
                 <div>
-                  <div className="text-ink-3">Upside / Down</div>
+                  <div className="text-ink-3">Naik / Turun</div>
                   <div className="num">
                     <span className="text-up">{r.upsidePct !== null ? fmtPct(r.upsidePct, 1) : '–'}</span> / <span className="text-down">{fmtPct(r.downsidePct, 1)}</span>
                   </div>
                 </div>
                 <div>
-                  <div className="text-ink-3">Hist. win</div>
+                  <div className="text-ink-3">Win hist.</div>
                   <div className="num">{r.historicalPositiveRate !== null ? `${r.historicalPositiveRate}%` : '–'}</div>
                 </div>
               </div>
               <div className="mt-2 flex items-center justify-between text-xs text-ink-3">
                 <span>
-                  AI conf. <Confidence value={r.aiConfidence} />
+                  Keyakinan AI <Confidence value={r.aiConfidence} />
                 </span>
                 <RiskBadge level={r.risk} />
                 {extra?.(r)}

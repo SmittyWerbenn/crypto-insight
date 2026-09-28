@@ -94,7 +94,7 @@ export async function recordSignal(t: TechnicalAnalysis, x: SignalExtras): Promi
       const ret = ((r.direction === 'LONG' ? s.price - r.entry : r.entry - s.price) / r.entry) * 100;
       await db
         .update(signalResults)
-        .set({ status: 'INVALIDATED', exitPrice: s.price, exitTime: ts, returnPercent: ret, note: `Invalidated by opposite ${t.signal} signal`, updatedAt: new Date() })
+        .set({ status: 'INVALIDATED', exitPrice: s.price, exitTime: ts, returnPercent: ret, note: `Dibatalkan oleh sinyal berlawanan ${t.signal}`, updatedAt: new Date() })
         .where(eq(signalResults.signalId, r.id));
     }
   }

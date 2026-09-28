@@ -10,7 +10,7 @@ const symbol = z.string().trim().toUpperCase().regex(/^[A-Z0-9]{2,20}$/, 'Invali
 
 export async function userRoutes(app: FastifyInstance) {
   app.addHook('preHandler', async (req) => {
-    if (/^\/api\/(watchlist|portfolio|alerts)/.test(req.url) && !isDbReady()) throw new AppError(503, 'DATABASE_UNAVAILABLE', 'This feature requires the database (DATABASE_URL).');
+    if (/^\/api\/(watchlist|portfolio|alerts)/.test(req.url) && !isDbReady()) throw new AppError(503, 'DATABASE_UNAVAILABLE', 'Fitur ini membutuhkan database (DATABASE_URL).');
   });
 
   app.get('/api/watchlist', async () => getWatchlist());
@@ -43,7 +43,7 @@ export async function userRoutes(app: FastifyInstance) {
   app.post('/api/alerts', async (req, reply) => {
     const body = z
       .object({ symbol, type: z.enum(ALERT_TYPES), value: z.number().finite().nullable().optional() })
-      .refine((a) => a.type.startsWith('SIGNAL_') || typeof a.value === 'number', { message: 'value is required for this alert type', path: ['value'] })
+      .refine((a) => a.type.startsWith('SIGNAL_') || typeof a.value === 'number', { message: 'nilai wajib diisi untuk jenis peringatan ini', path: ['value'] })
       .parse(req.body);
     return reply.status(201).send(await createAlert(body));
   });

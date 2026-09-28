@@ -25,6 +25,15 @@ describe('API (mock mode)', () => {
     expect(b.cards[0].sparkline.length).toBe(24);
   });
 
+  it('returns a USDT/IDR rate for display conversion', async () => {
+    const r = await app.inject('/api/market/fx');
+    expect(r.statusCode).toBe(200);
+    const b = r.json();
+    expect(b).toMatchObject({ base: 'USDT', quote: 'IDR' });
+    expect(b.rate).toBeGreaterThan(1000);
+    expect(b.source).toMatch(/mock/);
+  });
+
   it('returns klines with indicators', async () => {
     const r = await app.inject('/api/market/klines/BTCUSDT?timeframe=1h&limit=100&indicators=true');
     expect(r.statusCode).toBe(200);
@@ -66,6 +75,24 @@ describe('API (mock mode)', () => {
     const dd = (await app.inject(`/api/backtest/${jobId}/drawdown`)).json();
     expect(dd.length).toBeGreaterThan(100);
     expect((await app.inject(`/api/backtest/${jobId}/export`)).headers['content-type']).toMatch(/csv/);
+  });
+
+  it('builds a trade plan for a capital amount', async () => {
+    const r = await app.inject({ method: 'POST', url: '/api/planner', payload: { capital: 10000, risk: 'moderat', timeframe: '4h', maxPositions: 3 } });
+    expect(r.statusCode).toBe(200);
+    const b = r.json();
+    expect(b.summary.scanned).toBeGreaterThan(0);
+    expect(b.summary.capitalUsed).toBeLessThanOrEqual(10000);
+    for (const p of b.picks) {
+      expect(p.target).toBeGreaterThan(p.entry);
+      expect(p.stop).toBeLessThan(p.entry);
+      expect(p.profitIfTarget).toBeGreaterThan(0);
+      expect(p.lossIfStop).toBeLessThan(0);
+      // Loss at stop stays near the chosen risk per trade (1% of capital) plus costs
+      expect(Math.abs(p.lossIfStop)).toBeLessThanOrEqual(10000 * 0.01 * 1.1 + 5);
+    }
+    expect(b.picks.length + b.notRecommended.length).toBe(b.summary.scanned);
+    expect((await app.inject({ method: 'POST', url: '/api/planner', payload: { capital: -1 } })).statusCode).toBe(400);
   });
 
   it('requires the database for user features', async () => {
