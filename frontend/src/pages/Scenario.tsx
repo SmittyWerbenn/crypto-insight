@@ -4,7 +4,7 @@ import { CalendarClock, ChevronDown, ChevronRight, History, Play, Radar } from '
 import { api } from '@/services/api';
 import { Badge, Button, Card, CardBody, CardHeader, EmptyState, Notice, PageHeader, Stat } from '@/components/ui/primitives';
 import { Table, TBody, TD, TH, THead, TR } from '@/components/ui/table';
-import { PickCard, TAG_STYLE, type Pick } from './Planner';
+import { PickCard, TAG_STYLE, durasi, type Pick } from './Planner';
 import { baseAsset, fmtDate, fmtPct, fmtPriceSym, fmtUsd } from '@/utils/format';
 import { cn } from '@/utils/cn';
 
@@ -59,6 +59,33 @@ interface Totals {
   openPnl: number;
 }
 
+interface Comparison {
+  total: number;
+  done: number;
+  pending: number;
+  reachedEstimate: number;
+  averageDiffPct: number | null;
+  averageEstimatedReturnPct: number | null;
+  averageRealReturnPct: number | null;
+  nextDueAt: string | null;
+}
+
+interface Check {
+  symbol: string;
+  tag: string;
+  basis: 'ESTIMATED_HOLD' | 'MAX_HOLD';
+  entryPrice: number;
+  estimatedPrice: number;
+  estimatedReturnPct: number;
+  holdMs: number;
+  dueAt: string;
+  status: 'PENDING' | 'DONE' | 'FAILED';
+  realPrice: number | null;
+  realReturnPct: number | null;
+  diffPct: number | null;
+  note: string | null;
+}
+
 interface RunListItem {
   id: string;
   createdAt: string;
@@ -67,6 +94,7 @@ interface RunListItem {
   error: string | null;
   picksByTag: Record<string, number>;
   evaluation: Totals | null;
+  comparison: Comparison;
 }
 
 interface Outcome {
@@ -84,11 +112,11 @@ interface Outcome {
 }
 
 const STATUS_LABEL: Record<string, { label: string; tone: 'up' | 'down' | 'blue' | 'neutral' | 'warn' }> = {
-  TARGET_HIT: { label: 'Target tercapai', tone: 'up' },
-  STOP_HIT: { label: 'Kena cut loss', tone: 'down' },
-  TIMEOUT: { label: 'Dijual (waktu habis)', tone: 'neutral' },
+  TARGET_HIT: { label: 'Target', tone: 'up' },
+  STOP_HIT: { label: 'Cut loss', tone: 'down' },
+  TIMEOUT: { label: 'Waktu habis', tone: 'neutral' },
   OPEN: { label: 'Berjalan', tone: 'blue' },
-  PENDING: { label: 'Menunggu candle', tone: 'blue' },
+  PENDING: { label: 'Menunggu', tone: 'blue' },
   AMBIGUOUS: { label: 'Ambigu', tone: 'warn' },
 };
 
@@ -98,50 +126,116 @@ function TagChip({ tag }: { tag: string }) {
   return <span className={cn('rounded-md px-1.5 py-0.5 text-[11px] font-semibold', TAG_STYLE[tag] ?? 'bg-slate-100 text-ink-2')}>{tag}</span>;
 }
 
+function ComparisonSummary({ c }: { c: Comparison }) {
+  if (!c.total) return null;
+  return (
+    <div className="grid grid-cols-2 gap-4 bg-bg/60 px-5 py-3 sm:grid-cols-4">
+      <Stat label="Sudah dicek" value={`${c.done} / ${c.total}`} sub={c.nextDueAt ? `Cek berikutnya ${fmtDate(c.nextDueAt)}` : 'Semua sudah dicek'} />
+      <Stat label="Mencapai perkiraan" value={c.done ? `${c.reachedEstimate} dari ${c.done}` : '–'} sub="Harga real ≥ harga perkiraan" />
+      <Stat label="Return perkiraan (rata-rata)" value={<span className="text-up">{fmtPct(c.averageEstimatedReturnPct)}</span>} />
+      <Stat
+        label="Return real (rata-rata)"
+        value={<span className={(c.averageRealReturnPct ?? 0) >= 0 ? 'text-up' : 'text-down'}>{fmtPct(c.averageRealReturnPct)}</span>}
+        sub={c.averageDiffPct !== null ? `Harga real rata-rata ${fmtPct(c.averageDiffPct)} dari perkiraan` : undefined}
+      />
+    </div>
+  );
+}
+
 function RunDetail({ id }: { id: string }) {
-  const q = useQuery({ queryKey: ['scenario-run', id], queryFn: () => api<ScenarioRun & { evaluation: { outcomes: Outcome[]; totals: Totals } | null }>(`/api/scenario/runs/${id}`) });
+  const q = useQuery({
+    queryKey: ['scenario-run', id],
+    queryFn: () => api<ScenarioRun & { evaluation: { outcomes: Outcome[]; totals: Totals } | null; checks: Check[]; comparison: Comparison }>(`/api/scenario/runs/${id}`),
+    refetchInterval: 60_000,
+  });
   if (q.isLoading) return <p className="px-5 py-3 text-xs text-ink-3">Mengecek hasil…</p>;
   const outcomes = q.data?.evaluation?.outcomes ?? [];
+  const checks = new Map((q.data?.checks ?? []).map((c) => [`${c.symbol}|${c.tag}`, c]));
   if (!outcomes.length) return <p className="px-5 py-3 text-xs text-ink-3">Scan ini tidak menghasilkan rekomendasi beli.</p>;
   return (
-    <Table>
-      <THead>
-        <TR>
-          <TH>Koin</TH>
-          <TH>Gaya</TH>
-          <TH className="text-right">Beli</TH>
-          <TH className="text-right">Target</TH>
-          <TH className="text-right">Cut loss</TH>
-          <TH>Status</TH>
-          <TH className="text-right">Harga jual / terakhir</TH>
-          <TH className="text-right">Untung/rugi</TH>
-        </TR>
-      </THead>
-      <TBody>
-        {outcomes.map((o, i) => {
-          const st = STATUS_LABEL[o.status] ?? { label: o.status, tone: 'neutral' as const };
-          return (
-            <TR key={`${o.symbol}-${o.tag}-${i}`}>
-              <TD className="font-semibold">{baseAsset(o.symbol)}</TD>
-              <TD>
-                <TagChip tag={o.tag} />
-              </TD>
-              <TD className="text-right">{fmtPriceSym(o.entry)}</TD>
-              <TD className="text-right text-up">{fmtPriceSym(o.target)}</TD>
-              <TD className="text-right text-down">{fmtPriceSym(o.stop)}</TD>
-              <TD>
-                <Badge tone={st.tone}>{st.label}</Badge>
-              </TD>
-              <TD className="text-right">{fmtPriceSym(o.exitPrice ?? o.lastPrice)}</TD>
-              <TD className={cn('text-right font-medium', (o.pnl ?? 0) >= 0 ? 'text-up' : 'text-down')}>
-                {o.pnl !== null ? `${o.pnl >= 0 ? '+' : ''}${fmtUsd(o.pnl)} (${fmtPct(o.pnlPct)})` : '–'}
-                {(o.status === 'OPEN' || o.status === 'PENDING') && <span className="block text-[10px] font-normal text-ink-3">belum terealisasi</span>}
-              </TD>
-            </TR>
-          );
-        })}
-      </TBody>
-    </Table>
+    <>
+      {q.data?.comparison && <ComparisonSummary c={q.data.comparison} />}
+      <Table>
+        <THead>
+          <TR>
+            <TH>Koin</TH>
+            <TH>Gaya</TH>
+            <TH className="text-right">Beli</TH>
+            <TH>Estimasi tahan · waktu cek</TH>
+            <TH className="text-right">Harga perkiraan</TH>
+            <TH className="text-right">Harga real (selisih)</TH>
+            <TH className="text-right">Return perkiraan vs real</TH>
+            <TH>Posisi</TH>
+            <TH className="text-right">Untung/rugi</TH>
+          </TR>
+        </THead>
+        <TBody>
+          {outcomes.map((o, i) => {
+            const st = STATUS_LABEL[o.status] ?? { label: o.status, tone: 'neutral' as const };
+            const c = checks.get(`${o.symbol}|${o.tag}`);
+            return (
+              <TR key={`${o.symbol}-${o.tag}-${i}`}>
+                <TD className="font-semibold">{baseAsset(o.symbol)}</TD>
+                <TD>
+                  <TagChip tag={o.tag} />
+                </TD>
+                <TD className="text-right">{fmtPriceSym(c?.entryPrice ?? o.entry)}</TD>
+                <TD title={c?.basis === 'MAX_HOLD' ? 'Tidak ada estimasi historis — memakai batas jual paling lambat' : 'Median waktu ke target pada kasus historis'}>
+                  {c ? (
+                    <>
+                      {durasi(c.holdMs)}
+                      {c.basis === 'MAX_HOLD' && <span className="text-[10px] text-ink-3"> (batas jual)</span>}
+                      <span className="block text-[11px] text-ink-3">{fmtDate(c.dueAt)}</span>
+                    </>
+                  ) : (
+                    '–'
+                  )}
+                </TD>
+                <TD className="text-right">{c ? fmtPriceSym(c.estimatedPrice) : fmtPriceSym(o.target)}</TD>
+                <TD className="text-right font-medium">
+                  {c?.status === 'DONE' ? (
+                    <>
+                      {fmtPriceSym(c.realPrice)}
+                      <span className={cn('block text-[11px]', (c.diffPct ?? 0) >= 0 ? 'text-up' : 'text-down')}>{fmtPct(c.diffPct)} dari perkiraan</span>
+                    </>
+                  ) : c?.status === 'FAILED' ? (
+                    <span className="text-xs text-down" title={c.note ?? ''}>Gagal</span>
+                  ) : (
+                    <span className="text-xs font-normal text-ink-3">menunggu</span>
+                  )}
+                </TD>
+                <TD className="text-right text-xs">
+                  {c ? (
+                    <>
+                      <span className="text-ink-2">{fmtPct(c.estimatedReturnPct, 1)}</span>
+                      <span className="text-ink-3"> vs </span>
+                      {c.status === 'DONE' ? <span className={(c.realReturnPct ?? 0) >= 0 ? 'font-semibold text-up' : 'font-semibold text-down'}>{fmtPct(c.realReturnPct, 1)}</span> : <span className="text-ink-3">?</span>}
+                    </>
+                  ) : (
+                    '–'
+                  )}
+                </TD>
+                <TD>
+                  <Badge tone={st.tone}>{st.label}</Badge>
+                </TD>
+                <TD className={cn('text-right font-medium', (o.pnl ?? 0) >= 0 ? 'text-up' : 'text-down')}>
+                  {o.pnl !== null ? `${o.pnl >= 0 ? '+' : ''}${fmtUsd(o.pnl)}` : '–'}
+                  {o.pnl !== null && (
+                    <span className="block text-[10px] font-normal text-ink-3">
+                      {fmtPct(o.pnlPct)}
+                      {(o.status === 'OPEN' || o.status === 'PENDING') && ' · berjalan'}
+                    </span>
+                  )}
+                </TD>
+              </TR>
+            );
+          })}
+        </TBody>
+      </Table>
+      <p className="px-5 py-3 text-[11px] text-ink-3">
+        Harga perkiraan = target rencana. Harga real = harga pasar Binance tepat pada waktu cek (scan + estimasi lama tahan), dicatat otomatis sekali dan disimpan. Status posisi menunjukkan apakah target/cut loss tersentuh lebih dulu.
+      </p>
+    </>
   );
 }
 
@@ -150,6 +244,7 @@ function RunHistory() {
   const [open, setOpen] = useState<string | null>(null);
   const runs = q.data ?? [];
   const closedPnl = runs.reduce((a, r) => a + (r.evaluation?.realizedPnl ?? 0), 0);
+  const cmp = runs.reduce((a, r) => ({ done: a.done + r.comparison.done, reached: a.reached + r.comparison.reachedEstimate }), { done: 0, reached: 0 });
   const counts = runs.reduce((a, r) => ({ t: a.t + (r.evaluation?.targetHit ?? 0), s: a.s + (r.evaluation?.stopHit ?? 0), w: a.w + (r.evaluation?.timeout ?? 0) }), { t: 0, s: 0, w: 0 });
   return (
     <Card>
@@ -162,8 +257,9 @@ function RunHistory() {
         subtitle="Setiap rekomendasi dilacak dari waktu scan: apakah harga menyentuh target, cut loss, atau batas waktu lebih dulu (paper trading, tanpa order nyata)."
       />
       {runs.length > 0 && (
-        <CardBody className="grid grid-cols-2 gap-4 border-b border-border pb-4 sm:grid-cols-4">
+        <CardBody className="grid grid-cols-2 gap-4 border-b border-border pb-4 sm:grid-cols-5">
           <Stat label="Scan tersimpan" value={runs.length} />
+          <Stat label="Akurasi perkiraan" value={cmp.done ? `${Math.round((cmp.reached / cmp.done) * 100)}%` : '–'} sub={cmp.done ? `${cmp.reached} dari ${cmp.done} harga real ≥ perkiraan` : 'Belum ada yang jatuh tempo'} />
           <Stat label="Target tercapai" value={<span className="text-up">{counts.t}</span>} />
           <Stat label="Kena cut loss" value={<span className="text-down">{counts.s}</span>} sub={`${counts.w} dijual karena waktu habis`} />
           <Stat label="Total untung/rugi terealisasi" value={<span className={closedPnl >= 0 ? 'text-up' : 'text-down'}>{closedPnl >= 0 ? '+' : ''}{fmtUsd(closedPnl)}</span>} sub="Dari posisi yang sudah selesai" />
@@ -188,6 +284,17 @@ function RunHistory() {
                         <TagChip tag={tag} /> {n}
                       </span>
                     ))}
+                  </span>
+                )}
+                {r.comparison.total > 0 && (
+                  <span className="text-xs text-ink-3">
+                    Perkiraan vs real: {r.comparison.done}/{r.comparison.total} dicek
+                    {r.comparison.done > 0 && (
+                      <>
+                        {' · '}
+                        <span className={(r.comparison.averageRealReturnPct ?? 0) >= 0 ? 'text-up' : 'text-down'}>real {fmtPct(r.comparison.averageRealReturnPct, 1)}</span> vs perkiraan {fmtPct(r.comparison.averageEstimatedReturnPct, 1)}
+                      </>
+                    )}
                   </span>
                 )}
                 {r.evaluation && (

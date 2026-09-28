@@ -15,6 +15,7 @@ import {
   scenarioConfig,
   SCENARIO_STYLES,
 } from '../services/planner/scenario.service.js';
+import { checksForRuns, summarizeChecks } from '../services/planner/scenario-checks.js';
 
 export async function scenarioRoutes(app: FastifyInstance) {
   app.addHook('preHandler', async (req) => {
@@ -33,6 +34,7 @@ export async function scenarioRoutes(app: FastifyInstance) {
   app.get('/api/scenario/runs', async (req) => {
     const { limit } = z.object({ limit: z.coerce.number().int().min(1).max(100).default(20) }).parse(req.query);
     const runs = await listScenarioRuns(limit);
+    const checks = await checksForRuns(runs.map((r) => r.id));
     // Attach paper-trading results so the history shows how each scan's picks turned out
     return Promise.all(
       runs.map(async (r) => ({
@@ -44,13 +46,20 @@ export async function scenarioRoutes(app: FastifyInstance) {
         fxRate: r.fxRate,
         picksByTag: Object.fromEntries(r.styles.map((s) => [s.tag, s.picks.length])),
         evaluation: r.status === 'OK' ? (await evaluateScenarioRun(r)).totals : null,
+        comparison: summarizeChecks(checks.filter((c) => c.runId === r.id)),
       })),
     );
   });
 
   app.get('/api/scenario/runs/:id', async (req) => {
     const run = await getScenarioRun(IdParam.parse(req.params).id);
-    return { ...run, evaluation: run.status === 'OK' ? await evaluateScenarioRun(run) : null };
+    const checks = await checksForRuns([run.id]);
+    return {
+      ...run,
+      evaluation: run.status === 'OK' ? await evaluateScenarioRun(run) : null,
+      checks: checks.map((c) => ({ ...c, dueAt: c.dueAt.toISOString(), checkedAt: c.checkedAt?.toISOString() ?? null })),
+      comparison: summarizeChecks(checks),
+    };
   });
 
   /** Manual "scan now". Runs in the background; poll GET /api/scenario. */

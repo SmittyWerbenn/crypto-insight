@@ -9,7 +9,8 @@ import { trackOpenSignals } from '../services/signals/signals.service.js';
 import { logger } from '../utils/logger.js';
 import { getStatus } from '../services/binance/status.js';
 import { isDbReady } from '../db/client.js';
-import { latestScenario, runScenario } from '../services/planner/scenario.service.js';
+import { getScenarioRun, latestScenario, runScenario } from '../services/planner/scenario.service.js';
+import { backfillChecks, processDueChecks } from '../services/planner/scenario-checks.js';
 
 let running = false;
 
@@ -44,6 +45,13 @@ function startScenarioJob() {
   if (!env.ENABLE_SCENARIO_JOB || !isDbReady()) return;
   const run = (trigger: 'schedule' | 'startup') => void runScenario(trigger).catch((e) => logger.warn({ err: (e as Error).message }, 'Scenario scan skipped'));
   cron.schedule(`0 */${env.SCENARIO_INTERVAL_HOURS} * * *`, () => run('schedule'), { timezone: env.APP_TIMEZONE });
+  // Every minute: record the real price for picks whose estimated hold time has elapsed
+  const checks = () =>
+    void backfillChecks(getScenarioRun)
+      .then(() => processDueChecks())
+      .catch((e) => logger.warn({ err: (e as Error).message }, 'Scenario checks failed'));
+  cron.schedule('* * * * *', checks, { timezone: env.APP_TIMEZONE });
+  setTimeout(checks, 30_000);
   // Catch up after downtime (e.g. the machine was asleep at the scheduled time)
   setTimeout(async () => {
     const last = await latestScenario().catch(() => null);

@@ -352,3 +352,35 @@ export const scenarioRuns = pgTable(
   },
   (t) => [index('scenario_runs_created_idx').on(t.createdAt)],
 );
+
+/**
+ * Estimated-vs-real comparison for scenario picks: at scan time + estimated hold time,
+ * the real market price is recorded and compared with the plan's target (the estimate).
+ */
+export const scenarioChecks = pgTable(
+  'scenario_checks',
+  {
+    id: serial('id').primaryKey(),
+    runId: uuid('run_id')
+      .notNull()
+      .references(() => scenarioRuns.id, { onDelete: 'cascade' }),
+    symbol: varchar('symbol', { length: 32 }).notNull(),
+    tag: varchar('tag', { length: 16 }).notNull(),
+    timeframe: varchar('timeframe', { length: 8 }).notNull(),
+    /** ESTIMATED_HOLD = median historical time to target; MAX_HOLD = sell-by limit when no estimate exists. */
+    basis: varchar('basis', { length: 16 }).notNull(),
+    entryPrice: doublePrecision('entry_price').notNull(),
+    estimatedPrice: doublePrecision('estimated_price').notNull(),
+    estimatedReturnPct: doublePrecision('estimated_return_pct').notNull(),
+    holdMs: bigint('hold_ms', { mode: 'number' }).notNull(),
+    dueAt: ts('due_at').notNull(),
+    status: varchar('status', { length: 16 }).notNull().default('PENDING'), // PENDING | DONE | FAILED
+    realPrice: doublePrecision('real_price'),
+    realReturnPct: doublePrecision('real_return_pct'),
+    /** (real − estimated) / estimated × 100. */
+    diffPct: doublePrecision('diff_pct'),
+    checkedAt: ts('checked_at'),
+    note: text('note'),
+  },
+  (t) => [uniqueIndex('scenario_checks_run_pick_idx').on(t.runId, t.symbol, t.tag), index('scenario_checks_due_idx').on(t.status, t.dueAt)],
+);

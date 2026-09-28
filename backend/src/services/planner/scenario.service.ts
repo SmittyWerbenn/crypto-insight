@@ -12,6 +12,7 @@ import { usdtIdrRate } from '../market/fx.service.js';
 import { getTicker } from '../market/market.service.js';
 import { evaluateOutcome, type SignalStatus } from '../signals/outcome.js';
 import { buildTradePlan, type PlanPick } from './planner.service.js';
+import { createChecksForRun } from './scenario-checks.js';
 
 /** The three trading styles scanned in every scenario run, each tagged for the UI. */
 export const SCENARIO_STYLES: { timeframe: Timeframe; tag: 'Harian' | 'Swing' | 'Posisi' }[] = [
@@ -136,8 +137,10 @@ export async function runScenario(trigger: 'schedule' | 'manual' | 'startup'): P
       .insert(scenarioRuns)
       .values({ trigger, status: 'OK', fxRate: fx.rate, capitalIdr: cfg.capitalIdr, config: cfg, result: { styles, capitalUsdt, fxSource: fx.source }, durationMs: Date.now() - t0 })
       .returning();
+    const run = toRun(row);
+    await createChecksForRun(run).catch((e) => logger.warn({ err: (e as Error).message }, 'Could not create scenario checks'));
     logger.info({ trigger, ms: Date.now() - t0, picks: styles.map((s) => `${s.tag}:${s.picks.length}`).join(' ') }, 'Scenario scan complete');
-    return toRun(row);
+    return run;
   } catch (e) {
     const [row] = await getDb()
       .insert(scenarioRuns)

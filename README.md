@@ -35,6 +35,8 @@ Menu **Skenario Otomatis** (`/scenario`) menjalankan Rencana Trading secara terj
 
 Setiap scan disimpan (`scenario_runs`) dan rekomendasinya dilacak sebagai paper trading dari harga pasar saat scan: target tercapai, kena cut loss, dijual karena waktu habis, atau masih berjalan — beserta untung/rugi setelah biaya. Jika server mati saat jadwal, scan susulan berjalan otomatis saat server menyala. Tombol **Scan sekarang** menjalankan scan manual (`POST /api/scenario/run`).
 
+**Perbandingan perkiraan vs real:** saat scan, setiap rekomendasi mendapat jadwal cek = waktu scan + estimasi lama tahan (atau batas jual jika tidak ada estimasi). Job per menit mencatat harga real Binance pada menit tersebut (open candle 1m, akurat walau job terlambat), lalu menyimpan return real, selisih terhadap harga perkiraan (target), dan ringkasan akurasi per scan (tabel `scenario_checks`).
+
 API: `GET /api/scenario` (scan terakhir + jadwal), `GET /api/scenario/runs`, `GET /api/scenario/runs/:id` (dengan hasil pelacakan), `POST /api/scenario/run`.
 
 ## Bahasa & Mata Uang
