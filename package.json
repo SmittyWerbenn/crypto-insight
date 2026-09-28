@@ -1,0 +1,11 @@
+{
+  "name": "cryptoinsight-ai",
+  "private": true,
+  "scripts": {
+    "install:all": "npm --prefix backend ci && npm --prefix frontend ci",
+    "build": "npm --prefix backend run build && npm --prefix frontend run build",
+    "test": "npm --prefix backend test && npm --prefix frontend test",
+    "dev:backend": "npm --prefix backend run dev",
+    "dev:frontend": "npm --prefix frontend run dev"
+  }
+}

@@ -1,0 +1,60 @@
+import 'dotenv/config';
+import { z } from 'zod';
+
+const bool = z
+  .union([z.boolean(), z.string()])
+  .transform((v) => (typeof v === 'boolean' ? v : ['1', 'true', 'yes'].includes(v.toLowerCase())));
+
+const EnvSchema = z.object({
+  NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
+  PORT: z.coerce.number().int().positive().default(3000),
+  HOST: z.string().default('0.0.0.0'),
+  LOG_LEVEL: z.string().default('info'),
+
+  DATABASE_URL: z.string().optional(),
+  REDIS_URL: z.string().optional(),
+
+  BINANCE_API_URL: z.string().url().default('https://api.binance.com'),
+  BINANCE_API_FALLBACK_URL: z.string().default('https://data-api.binance.vision'),
+  BINANCE_WS_URL: z.string().default('wss://stream.binance.com:9443'),
+  BINANCE_WS_FALLBACK_URL: z.string().default('wss://data-stream.binance.vision'),
+  BINANCE_FUTURES_API_URL: z.string().url().default('https://fapi.binance.com'),
+  BINANCE_FUTURES_WS_URL: z.string().default('wss://fstream.binance.com'),
+  BINANCE_TIMEOUT_MS: z.coerce.number().int().positive().default(10_000),
+
+  ANTHROPIC_API_KEY: z.string().optional(),
+  ANTHROPIC_MODEL: z.string().default('claude-opus-5'),
+  ANTHROPIC_EFFORT: z.enum(['low', 'medium', 'high', 'xhigh', 'max']).default('medium'),
+  ANTHROPIC_ENABLE_FALLBACKS: bool.default(true),
+  AI_LANGUAGE: z.enum(['id', 'en']).default('id'),
+  AI_CACHE_TTL_SECONDS: z.coerce.number().int().positive().default(1800),
+  ANTHROPIC_TIMEOUT_MS: z.coerce.number().int().positive().default(120_000),
+
+  COINGECKO_API_URL: z.string().default('https://api.coingecko.com/api/v3'),
+  FEAR_GREED_API_URL: z.string().url().default('https://api.alternative.me/fng/'),
+  CRYPTOPANIC_API_KEY: z.string().optional(),
+
+  APP_TIMEZONE: z.string().default('Asia/Jakarta'),
+  CORS_ORIGIN: z.string().default('http://localhost:5173,http://localhost:8080'),
+  RATE_LIMIT_MAX: z.coerce.number().int().positive().default(300),
+
+  MOCK_MODE: bool.default(false),
+  ENABLE_JOBS: bool.default(true),
+  ENABLE_WEBSOCKET: bool.default(true),
+  AI_ANALYSIS_CRON: z.string().default('*/15 * * * *'),
+  AI_MARKET_SUMMARY_MINUTES: z.coerce.number().int().positive().default(60),
+  SIGNAL_TRACKER_CRON: z.string().default('*/5 * * * *'),
+  TRACKED_SYMBOLS: z.string().default('BTCUSDT,ETHUSDT,BNBUSDT,SOLUSDT,XRPUSDT,DOGEUSDT,ADAUSDT,AVAXUSDT'),
+  ANALYSIS_TIMEFRAME: z.string().default('4h'),
+});
+
+const parsed = EnvSchema.safeParse(process.env);
+if (!parsed.success) {
+  // eslint-disable-next-line no-console
+  console.error('Invalid environment configuration', z.treeifyError(parsed.error));
+  process.exit(1);
+}
+
+export const env = parsed.data;
+export const trackedSymbols = env.TRACKED_SYMBOLS.split(',').map((s) => s.trim().toUpperCase()).filter(Boolean);
+export const isAiConfigured = () => Boolean(env.ANTHROPIC_API_KEY);
