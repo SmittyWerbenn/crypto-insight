@@ -1,4 +1,5 @@
 import { HISTORICAL_CONFIG, SIGNAL_LABEL, type SignalType } from '../../config/scoring.js';
+import { env } from '../../config/env.js';
 import { TIMEFRAME_MS, type Timeframe } from '../../config/timeframes.js';
 import type { Candle } from '../../types/market.js';
 import { median, round } from '../../utils/math.js';
@@ -24,6 +25,8 @@ export interface TechnicalAnalysis {
   snapshot: TechnicalSnapshot;
   risk: RiskAssessment;
   levels: TradeLevels | null;
+  /** Set when a counter-trend signal was downgraded to HOLD (regime filter). */
+  suppressedSignal: { original: SignalType; reason: string } | null;
   scenarios: Scenario | null;
   historical: SimilarityResult;
   regime: 'BULL' | 'BEAR' | 'SIDEWAYS';
@@ -57,21 +60,36 @@ export function analyzeCandles(symbol: string, tf: Timeframe, raw: Candle[]): Te
   const score = scoreSnapshot(snap, prev);
   const sim = findSimilarSetups(candles, series, t, tf, horizonsFor(tf));
   const regime = snap.sma200 === null || snap.sma50 === null ? 'SIDEWAYS' : snap.price > snap.sma200 && snap.sma50 > snap.sma200 ? 'BULL' : snap.price < snap.sma200 && snap.sma50 < snap.sma200 ? 'BEAR' : 'SIDEWAYS';
+  // Regime filter: counter-trend signals historically cut losses at a very high rate
+  // (e.g. SELL in a BULL regime gets stopped as the long-term uptrend resumes). Downgrade to HOLD.
+  let signal = score.signal;
+  let suppressedSignal: { original: SignalType; reason: string } | null = null;
+  if (env.ENABLE_REGIME_FILTER) {
+    if (regime === 'BULL' && (signal === 'SELL' || signal === 'STRONG_SELL')) {
+      suppressedSignal = { original: signal, reason: `Sinyal ${SIGNAL_LABEL[signal]} ditekan menjadi TAHAN — koin masih uptrend jangka panjang (harga di atas MA200).` };
+      signal = 'HOLD';
+    } else if (regime === 'BEAR' && (signal === 'BUY' || signal === 'STRONG_BUY')) {
+      suppressedSignal = { original: signal, reason: `Sinyal ${SIGNAL_LABEL[signal]} ditekan menjadi TAHAN — koin masih downtrend jangka panjang (harga di bawah MA200).` };
+      signal = 'HOLD';
+    }
+  }
+  if (suppressedSignal) score.factors.push({ type: 'neutral', text: suppressedSignal.reason });
   return {
-    symbol,
-    timeframe: tf,
-    candleTime: candles[t].openTime,
-    candleCloseTime: candles[t].closeTime,
-    price: snap.price,
-    signal: score.signal,
-    signalLabel: SIGNAL_LABEL[score.signal],
-    technicalScore: score.score,
-    score,
-    dataCompleteness: round(score.dataCompleteness, 3),
-    snapshot: snap,
-    risk: assessRisk(snap),
-    levels: computeLevels(snap, score.signal),
-    scenarios: computeScenarios(snap),
+   symbol,
+   timeframe: tf,
+   candleTime: candles[t].openTime,
+   candleCloseTime: candles[t].closeTime,
+   price: snap.price,
+   signal,
+   signalLabel: SIGNAL_LABEL[signal],
+   technicalScore: score.score,
+   score,
+   dataCompleteness: round(score.dataCompleteness, 3),
+   snapshot: snap,
+   risk: assessRisk(snap),
+   levels: suppressedSignal ? null : computeLevels(snap, signal),
+   suppressedSignal,
+   scenarios: computeScenarios(snap),
     historical: sim,
     regime,
     volatilityMedian: (() => {

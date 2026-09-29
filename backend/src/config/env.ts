@@ -54,6 +54,9 @@ const EnvSchema = z.object({
   MOCK_MODE: bool.default(false),
   ENABLE_JOBS: bool.default(true),
   ENABLE_WEBSOCKET: bool.default(true),
+  // Suppress counter-trend signals: SELL/STRONG_SELL in a BULL regime (price & MA50 above MA200)
+  // and BUY/STRONG_BUY in a BEAR regime are downgraded to HOLD with no trade levels.
+  ENABLE_REGIME_FILTER: bool.default(true),
   AI_ANALYSIS_CRON: z.string().default('*/15 * * * *'),
   AI_MARKET_SUMMARY_MINUTES: z.coerce.number().int().positive().default(60),
   // Skenario Otomatis: scheduled trade-plan scan
