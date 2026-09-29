@@ -178,6 +178,7 @@ export interface PickOutcome {
   entry: number;
   target: number;
   stop: number;
+  riskLevel: string;
   exitPrice: number | null;
   exitTime: number | null;
   lastPrice: number | null;
@@ -216,13 +217,14 @@ export async function evaluateScenarioRun(run: ScenarioRun): Promise<{ outcomes:
         const pnl = exit !== null && o.status !== 'AMBIGUOUS' ? qty * (exit - fill) - cost * (p.positionValue + qty * exit) : null;
         outcomes.push({
           symbol: p.symbol,
-          tag: style.tag,
-          timeframe: style.timeframe,
-          status: o.status,
-          entry: fill,
-          target: p.target,
-          stop: p.stop,
-          exitPrice: o.exitPrice,
+            tag: style.tag,
+            timeframe: style.timeframe,
+            status: o.status,
+            entry: fill,
+            target: p.target,
+            stop: p.stop,
+            riskLevel: p.riskLevel,
+            exitPrice: o.exitPrice,
           exitTime: o.exitTime,
           lastPrice: last,
           pnl: pnl === null ? null : round(pnl, 4),

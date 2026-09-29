@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CalendarClock, ChevronDown, ChevronRight, History, Play, Radar } from 'lucide-react';
 import { api } from '@/services/api';
 import { Badge, Button, Card, CardBody, CardHeader, EmptyState, Notice, PageHeader, Stat } from '@/components/ui/primitives';
+import { RiskBadge } from '@/components/ui/domain';
 import { Table, TBody, TD, TH, THead, TR } from '@/components/ui/table';
 import { PickCard, TAG_STYLE, durasi, type Pick } from './Planner';
 import { baseAsset, fmtDate, fmtPct, fmtPriceSym, fmtUsd } from '@/utils/format';
@@ -104,6 +105,7 @@ interface Outcome {
   entry: number;
   target: number;
   stop: number;
+  riskLevel: string;
   exitPrice: number | null;
   lastPrice: number | null;
   pnl: number | null;
@@ -160,6 +162,7 @@ function RunDetail({ id }: { id: string }) {
           <TR>
             <TH>Koin</TH>
             <TH>Gaya</TH>
+            <TH>Risiko</TH>
             <TH className="text-right">Beli</TH>
             <TH>Estimasi tahan · waktu cek</TH>
             <TH className="text-right">Harga perkiraan</TH>
@@ -177,7 +180,10 @@ function RunDetail({ id }: { id: string }) {
               <TR key={`${o.symbol}-${o.tag}-${i}`}>
                 <TD className="font-semibold">{baseAsset(o.symbol)}</TD>
                 <TD>
-                  <TagChip tag={o.tag} />
+                <TagChip tag={o.tag} />
+                </TD>
+                <TD>
+                <RiskBadge level={o.riskLevel} />
                 </TD>
                 <TD className="text-right">{fmtPriceSym(c?.entryPrice ?? o.entry)}</TD>
                 <TD title={c?.basis === 'MAX_HOLD' ? 'Tidak ada estimasi historis — memakai batas jual paling lambat' : 'Median waktu ke target pada kasus historis'}>
