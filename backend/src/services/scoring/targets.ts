@@ -35,31 +35,35 @@ export function computeLevels(s: TechnicalSnapshot, signal: SignalType): TradeLe
   const method: string[] = [];
 
   if (signal === 'SELL' || signal === 'STRONG_SELL') {
-    const candidates = [...pa.supportLevels, pa.lastSwingLow ?? NaN, s.bbLower ?? NaN].filter((v) => Number.isFinite(v) && v < price - 0.5 * atr);
-    const target = candidates.length ? Math.max(...candidates.filter((v) => v <= price - atr).concat(price - TARGET_CONFIG.atrTargetMultiplier * atr)) : price - TARGET_CONFIG.atrTargetMultiplier * atr;
-    method.push(candidates.length ? 'Target bearish: support terdekat ≥1 ATR di bawah harga' : 'Target bearish: 3×ATR di bawah harga');
-    const invalidation = pa.resistance !== null && pa.resistance - price < 3 * atr ? pa.resistance + 0.25 * atr : price + TARGET_CONFIG.atrStopMultiplier * atr;
-    return {
-      direction: 'SHORT_OR_REDUCE',
-      entry: price,
-      target: round(target, 8),
-      stop: round(invalidation, 8),
-      upsidePct: null,
-      downsidePct: pct(price, target),
-      riskReward: round((price - target) / (invalidation - price), 2),
-      method,
-    };
+   const candidates = [...pa.supportLevels, pa.lastSwingLow ?? NaN, s.bbLower ?? NaN].filter((v) => Number.isFinite(v) && v < price - 0.5 * atr);
+   const target = candidates.length ? Math.max(...candidates.filter((v) => v <= price - atr).concat(price - TARGET_CONFIG.atrTargetMultiplier * atr)) : price - TARGET_CONFIG.atrTargetMultiplier * atr;
+   method.push(candidates.length ? 'Target bearish: support terdekat ≥1 ATR di bawah harga' : 'Target bearish: 3×ATR di bawah harga');
+   const invalidation = pa.resistance !== null && pa.resistance - price < 3 * atr ? pa.resistance + 0.25 * atr : price + TARGET_CONFIG.atrStopMultiplier * atr;
+   // Floor the stop so it never sits inside normal noise (a too-tight stop gets triggered by the market breathing).
+   const stop = Math.max(invalidation, price + TARGET_CONFIG.minStopDistanceAtr * atr);
+   return {
+    direction: 'SHORT_OR_REDUCE',
+    entry: price,
+    target: round(target, 8),
+    stop: round(stop, 8),
+    upsidePct: null,
+    downsidePct: pct(price, target),
+    riskReward: round((price - target) / (stop - price), 2),
+    method,
+   };
   }
 
   // Long-side levels (BUY / STRONG_BUY / HOLD)
   let stop: number;
   if (pa.support !== null && price - pa.support >= 0.5 * atr && price - pa.support <= 3 * atr) {
-    stop = pa.support - 0.25 * atr;
-    method.push('Stop: di bawah support terdekat yang terkonfirmasi (buffer −0,25 ATR)');
+   stop = pa.support - 0.25 * atr;
+   method.push('Stop: di bawah support terdekat yang terkonfirmasi (buffer −0,25 ATR)');
   } else {
-    stop = price - TARGET_CONFIG.atrStopMultiplier * atr;
-    method.push(`Stop: ${TARGET_CONFIG.atrStopMultiplier}×ATR di bawah harga`);
+   stop = price - TARGET_CONFIG.atrStopMultiplier * atr;
+   method.push(`Stop: ${TARGET_CONFIG.atrStopMultiplier}×ATR di bawah harga`);
   }
+  // Floor the stop so it never sits inside normal noise.
+  stop = Math.min(stop, price - TARGET_CONFIG.minStopDistanceAtr * atr);
   const risk = price - stop;
   const candidates = [...pa.resistanceLevels, pa.lastSwingHigh ?? NaN, s.bbUpper ?? NaN]
     .filter((v) => Number.isFinite(v) && v > price)

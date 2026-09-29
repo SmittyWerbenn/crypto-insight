@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { computeSeries, snapshotAt } from '../technical/engine.js';
 import { scoreSnapshot, signalFromScore } from './scoring.js';
 import { computeLevels, computeScenarios } from './targets.js';
+import { TARGET_CONFIG } from '../../config/scoring.js';
 import { randomWalk } from '../../test-utils/candles.js';
 
 function scoreOf(candles: ReturnType<typeof randomWalk>) {
@@ -64,10 +65,19 @@ describe('targets & scenarios', () => {
     expect(lv.riskReward!).toBeGreaterThanOrEqual(1.5);
   });
   it('sell levels have no upside and a negative downside', () => {
-    const { snap } = scoreOf(randomWalk(300, 11, -0.004, 0.015));
-    const lv = computeLevels(snap, 'SELL')!;
-    expect(lv.upsidePct).toBeNull();
-    expect(lv.downsidePct).toBeLessThan(0);
+   const { snap } = scoreOf(randomWalk(300, 11, -0.004, 0.015));
+   const lv = computeLevels(snap, 'SELL')!;
+   expect(lv.upsidePct).toBeNull();
+   expect(lv.downsidePct).toBeLessThan(0);
+  });
+  it('never places a stop closer than minStopDistanceAtr × ATR (long and short)', () => {
+   const bull = scoreOf(randomWalk(300, 11, 0.004, 0.015)).snap;
+   const long = computeLevels(bull, 'BUY')!;
+   expect(bull.price - long.stop).toBeGreaterThanOrEqual(TARGET_CONFIG.minStopDistanceAtr * bull.atr! - 1e-9);
+
+   const bear = scoreOf(randomWalk(300, 11, -0.004, 0.015)).snap;
+   const short = computeLevels(bear, 'SELL')!;
+   expect(short.stop - bear.price).toBeGreaterThanOrEqual(TARGET_CONFIG.minStopDistanceAtr * bear.atr! - 1e-9);
   });
   it('scenarios are ordered bearish < base range < bullish', () => {
     const { snap } = scoreOf(randomWalk(300, 4));

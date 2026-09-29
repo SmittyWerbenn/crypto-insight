@@ -80,6 +80,8 @@ export const HISTORICAL_CONFIG = {
 export const TARGET_CONFIG = {
   atrStopMultiplier: 1.5,
   atrTargetMultiplier: 3,
+  /** Stop is never placed closer than this many ATRs from price (prevents noise-triggered stops). */
+  minStopDistanceAtr: 1.0,
   minRiskReward: 1.5,
   /** Signal evaluation window in candles before TIMEOUT. */
   evaluationWindow: 24,
