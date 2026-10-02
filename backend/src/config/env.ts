@@ -59,13 +59,8 @@ const EnvSchema = z.object({
   ENABLE_REGIME_FILTER: bool.default(true),
   AI_ANALYSIS_CRON: z.string().default('*/15 * * * *'),
   AI_MARKET_SUMMARY_MINUTES: z.coerce.number().int().positive().default(60),
-  // Skenario Otomatis: scheduled trade-plan scan
-  ENABLE_SCENARIO_JOB: bool.default(true),
-  SCENARIO_INTERVAL_HOURS: z.coerce.number().int().refine((h) => [1, 2, 3, 4, 6, 8, 12, 24].includes(h), 'must divide 24').default(6),
-  SCENARIO_CAPITAL_IDR: z.coerce.number().positive().default(1_000_000),
-  SCENARIO_RISK: z.enum(['konservatif', 'moderat', 'agresif']).default('agresif'),
-  SCENARIO_MAX_POSITIONS: z.coerce.number().int().min(1).max(10).default(5),
-  SCENARIO_UNIVERSE: z.enum(['tracked', 'top']).default('top'),
+  // Paper Trading V2: hourly entry scan + 5-minute exit monitor on a simulated Rp1.000.000 portfolio
+  ENABLE_PAPER_JOB: bool.default(true),
   SIGNAL_TRACKER_CRON: z.string().default('*/5 * * * *'),
   TRACKED_SYMBOLS: z.string().default('BTCUSDT,ETHUSDT,BNBUSDT,SOLUSDT,XRPUSDT,DOGEUSDT,ADAUSDT,AVAXUSDT'),
   ANALYSIS_TIMEFRAME: z.string().default('4h'),

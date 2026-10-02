@@ -29,15 +29,21 @@ Halaman **Rencana Trading** (`/planner`, `POST /api/planner`): masukkan modal (R
 
 Semua estimasi berasal dari data dan simulasi historis — bukan jaminan.
 
-## Skenario Otomatis
+## Paper Trading V2
 
-Menu **Skenario Otomatis** (`/scenario`) menjalankan Rencana Trading secara terjadwal setiap `SCENARIO_INTERVAL_HOURS` jam (default 6 → 00:00, 06:00, 12:00, 18:00 WIB) dengan modal Rp 1.000.000, profil agresif, maks. 5 koin, 20 koin teraktif + watchlist — untuk ketiga gaya trading sekaligus, masing-masing diberi tag **Harian (1J)**, **Swing (4J)**, **Posisi (1 hari)**. Semua parameter bisa diubah lewat env `SCENARIO_*`.
+Menu **Paper Trading V2** (`/paper`, menggantikan Skenario Otomatis) menjalankan portofolio simulasi dengan modal virtual **Rp1.000.000**, tanpa fee dan tanpa compounding.
 
-Setiap scan disimpan (`scenario_runs`) dan rekomendasinya dilacak sebagai paper trading dari harga pasar saat scan: target tercapai, kena cut loss, dijual karena waktu habis, atau masih berjalan — beserta untung/rugi setelah biaya. Jika server mati saat jadwal, scan susulan berjalan otomatis saat server menyala. Tombol **Scan sekarang** menjalankan scan manual (`POST /api/scenario/run`).
+- **Entry:** breakout high 20 jam dengan volume ≥ 3×, koin ber-regime BULL, hanya jika BTC naik dalam 30 hari.
+- **Exit:** TP 0,75 ATR, SL 2,5 ATR, timeout 8 jam.
+- **Ukuran posisi:** berbasis risk 1% (maks Rp200.000 per koin).
+- **Batas:** 1 posisi per koin, eksposur ≤ 70%, maks 50% per klaster korelasi.
+- **Jadwal:** scan setiap jam tepat setelah candle 1h tutup; exit dicek setiap candle 5 menit.
 
-**Perbandingan perkiraan vs real:** saat scan, setiap rekomendasi mendapat jadwal cek = waktu scan + estimasi lama tahan (atau batas jual jika tidak ada estimasi). Job per menit mencatat harga real Binance pada menit tersebut (open candle 1m, akurat walau job terlambat), lalu menyimpan return real, selisih terhadap harga perkiraan (target), dan ringkasan akurasi per scan (tabel `scenario_checks`).
+Semua transaksi, capital ledger (equity curve), ringkasan harian, per aset, dan log scan (termasuk alasan *HOLD CASH*) disimpan di tabel `paper_*`. Tab **Riset & Backtest** menampilkan bukti setiap parameter: baseline strategi lama, training/validasi/test, dan grid robustness. Detail lengkap ada di [docs/paper-trading-v2.md](docs/paper-trading-v2.md). Harness riset ada di `backend/scripts/paper-research/`.
 
-API: `GET /api/scenario` (scan terakhir + jadwal), `GET /api/scenario/runs`, `GET /api/scenario/runs/:id` (dengan hasil pelacakan), `POST /api/scenario/run`.
+API: `GET /api/paper`, `/api/paper/trades`, `/api/paper/equity`, `/api/paper/daily`, `/api/paper/assets`, `/api/paper/scans`, `/api/paper/research`, `POST /api/paper/scan`.
+
+Data Skenario Otomatis lama diarsipkan di `docs/research/paper-trading-v1-archive.json.gz` sebelum tabelnya dihapus (migration `0004_drop_legacy_scenario`).
 
 ## Bahasa & Mata Uang
 

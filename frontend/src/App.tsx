@@ -20,7 +20,7 @@ const News = lazy(() => import('@/pages/News'));
 const Settings = lazy(() => import('@/pages/Settings'));
 const Planner = lazy(() => import('@/pages/Planner'));
 const Glossary = lazy(() => import('@/pages/Glossary'));
-const Scenario = lazy(() => import('@/pages/Scenario'));
+const PaperTrading = lazy(() => import('@/pages/PaperTrading'));
 
 const page = (el: React.ReactNode) => <Suspense fallback={<Skeleton className="h-96 w-full" />}>{el}</Suspense>;
 
@@ -39,7 +39,8 @@ const router = createBrowserRouter([
     children: [
       { path: '/', element: <Dashboard /> },
       { path: '/planner', element: page(<Planner />) },
-      { path: '/scenario', element: page(<Scenario />) },
+      { path: '/paper', element: page(<PaperTrading />) },
+      { path: '/scenario', element: <Navigate to="/paper" replace /> },
       { path: '/markets', element: page(<Markets />) },
       { path: '/signals', element: page(<Signals />) },
       { path: '/watchlist', element: page(<Watchlist />) },

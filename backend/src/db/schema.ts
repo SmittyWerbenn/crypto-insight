@@ -335,52 +335,103 @@ export const sentiment = pgTable(
   (t) => [uniqueIndex('sentiment_source_ts_idx').on(t.source, t.timestamp)],
 );
 
-/** Scheduled trade-plan scenario scans (Skenario Otomatis). */
-export const scenarioRuns = pgTable(
-  'scenario_runs',
+/**
+ * Paper Trading V2 — a simulated Rp portfolio (fixed base capital, no fees, no compounding).
+ * Single account: row id = 1 holds cash, realized P&L, high-water mark and the strategy/money config in force.
+ */
+export const paperState = pgTable('paper_state', {
+  id: integer('id').primaryKey(),
+  startedAt: ts('started_at').notNull().defaultNow(),
+  config: jsonb('config').notNull(),
+  cash: doublePrecision('cash').notNull(),
+  realizedPnl: doublePrecision('realized_pnl').notNull().default(0),
+  highWaterMark: doublePrecision('high_water_mark').notNull(),
+  maxDrawdownPct: doublePrecision('max_drawdown_pct').notNull().default(0),
+  seq: integer('seq').notNull().default(0),
+  lastScanAt: ts('last_scan_at'),
+  updatedAt: ts('updated_at').notNull().defaultNow(),
+});
+
+export const paperPositions = pgTable('paper_positions', {
+  id: varchar('id', { length: 16 }).primaryKey(),
+  symbol: varchar('symbol', { length: 32 }).notNull(),
+  cluster: varchar('cluster', { length: 24 }).notNull(),
+  openedAt: ts('opened_at').notNull(),
+  plannedCost: doublePrecision('planned_cost').notNull(),
+  layers: jsonb('layers').notNull(),
+  tp: doublePrecision('tp').notNull(),
+  sl: doublePrecision('sl').notNull(),
+  timeoutAt: ts('timeout_at').notNull(),
+  atrPct: doublePrecision('atr_pct').notNull(),
+  high: doublePrecision('high').notNull(),
+  low: doublePrecision('low').notNull(),
+  meta: jsonb('meta').notNull(),
+  /** Open time of the last 5m candle already checked for TP/SL. */
+  lastBarTime: bigint('last_bar_time', { mode: 'number' }).notNull(),
+});
+
+export const paperTrades = pgTable(
+  'paper_trades',
   {
-    id: uuid('id').primaryKey().defaultRandom(),
-    createdAt: createdAt(),
-    trigger: varchar('trigger', { length: 16 }).notNull(), // schedule | manual | startup
-    status: varchar('status', { length: 16 }).notNull(), // OK | FAILED
-    fxRate: doublePrecision('fx_rate'),
-    capitalIdr: doublePrecision('capital_idr').notNull(),
-    config: jsonb('config').notNull(),
-    result: jsonb('result'),
-    error: text('error'),
-    durationMs: integer('duration_ms'),
+    id: varchar('id', { length: 16 }).primaryKey(),
+    symbol: varchar('symbol', { length: 32 }).notNull(),
+    cluster: varchar('cluster', { length: 24 }).notNull(),
+    openedAt: ts('opened_at').notNull(),
+    closedAt: ts('closed_at').notNull(),
+    qty: doublePrecision('qty').notNull(),
+    avgEntry: doublePrecision('avg_entry').notNull(),
+    cost: doublePrecision('cost').notNull(),
+    exitPrice: doublePrecision('exit_price').notNull(),
+    exitReason: varchar('exit_reason', { length: 16 }).notNull(), // TARGET | CUTLOSS | TIMEOUT
+    pnl: doublePrecision('pnl').notNull(),
+    pnlPct: doublePrecision('pnl_pct').notNull(),
+    holdH: doublePrecision('hold_h').notNull(),
+    mfePct: doublePrecision('mfe_pct').notNull(),
+    maePct: doublePrecision('mae_pct').notNull(),
+    tp: doublePrecision('tp').notNull(),
+    sl: doublePrecision('sl').notNull(),
+    layers: jsonb('layers').notNull(),
+    /** Entry snapshot: score, regimes, ATR, ATR percentile, RSI, MACD, volume, momentum, allocation, exposure. */
+    meta: jsonb('meta').notNull(),
+    cashAfter: doublePrecision('cash_after').notNull(),
+    equityAfter: doublePrecision('equity_after').notNull(),
   },
-  (t) => [index('scenario_runs_created_idx').on(t.createdAt)],
+  (t) => [index('paper_trades_closed_idx').on(t.closedAt)],
 );
 
-/**
- * Estimated-vs-real comparison for scenario picks: at scan time + estimated hold time,
- * the real market price is recorded and compared with the plan's target (the estimate).
- */
-export const scenarioChecks = pgTable(
-  'scenario_checks',
+/** Capital ledger: every BUY/SELL plus an hourly mark-to-market point (the equity curve). */
+export const paperLedger = pgTable(
+  'paper_ledger',
   {
     id: serial('id').primaryKey(),
-    runId: uuid('run_id')
-      .notNull()
-      .references(() => scenarioRuns.id, { onDelete: 'cascade' }),
-    symbol: varchar('symbol', { length: 32 }).notNull(),
-    tag: varchar('tag', { length: 16 }).notNull(),
-    timeframe: varchar('timeframe', { length: 8 }).notNull(),
-    /** ESTIMATED_HOLD = median historical time to target; MAX_HOLD = sell-by limit when no estimate exists. */
-    basis: varchar('basis', { length: 16 }).notNull(),
-    entryPrice: doublePrecision('entry_price').notNull(),
-    estimatedPrice: doublePrecision('estimated_price').notNull(),
-    estimatedReturnPct: doublePrecision('estimated_return_pct').notNull(),
-    holdMs: bigint('hold_ms', { mode: 'number' }).notNull(),
-    dueAt: ts('due_at').notNull(),
-    status: varchar('status', { length: 16 }).notNull().default('PENDING'), // PENDING | DONE | FAILED
-    realPrice: doublePrecision('real_price'),
-    realReturnPct: doublePrecision('real_return_pct'),
-    /** (real − estimated) / estimated × 100. */
-    diffPct: doublePrecision('diff_pct'),
-    checkedAt: ts('checked_at'),
+    time: ts('time').notNull(),
+    event: varchar('event', { length: 8 }).notNull(), // START | BUY | ADD | SELL | MARK
+    symbol: varchar('symbol', { length: 32 }),
+    amount: doublePrecision('amount').notNull(),
+    cash: doublePrecision('cash').notNull(),
+    invested: doublePrecision('invested').notNull(),
+    realizedPnl: doublePrecision('realized_pnl').notNull(),
+    unrealizedPnl: doublePrecision('unrealized_pnl').notNull(),
+    equity: doublePrecision('equity').notNull(),
+    openPositions: integer('open_positions').notNull(),
+    highWaterMark: doublePrecision('high_water_mark').notNull(),
+    drawdownPct: doublePrecision('drawdown_pct').notNull(),
+  },
+  (t) => [index('paper_ledger_time_idx').on(t.time)],
+);
+
+/** One row per hourly scan: market filter, how many coins passed, what was bought or skipped and why. */
+export const paperScans = pgTable(
+  'paper_scans',
+  {
+    id: serial('id').primaryKey(),
+    time: ts('time').notNull(),
+    btc: jsonb('btc'),
+    scanned: integer('scanned').notNull(),
+    signals: integer('signals').notNull(),
+    entries: jsonb('entries').notNull(),
+    skipped: jsonb('skipped').notNull(),
     note: text('note'),
   },
-  (t) => [uniqueIndex('scenario_checks_run_pick_idx').on(t.runId, t.symbol, t.tag), index('scenario_checks_due_idx').on(t.status, t.dueAt)],
+  (t) => [index('paper_scans_time_idx').on(t.time)],
 );

@@ -9,8 +9,7 @@ import { trackOpenSignals } from '../services/signals/signals.service.js';
 import { logger } from '../utils/logger.js';
 import { getStatus } from '../services/binance/status.js';
 import { isDbReady } from '../db/client.js';
-import { getScenarioRun, latestScenario, runScenario } from '../services/planner/scenario.service.js';
-import { backfillChecks, processDueChecks } from '../services/planner/scenario-checks.js';
+import { monitorPaper, scanPaper } from '../services/paper/engine.js';
 
 let running = false;
 
@@ -40,28 +39,22 @@ export async function runAnalysisCycle() {
   }
 }
 
-/** Skenario Otomatis: every SCENARIO_INTERVAL_HOURS on the WIB clock (00:00, 06:00, 12:00, 18:00 by default). */
-function startScenarioJob() {
-  if (!env.ENABLE_SCENARIO_JOB || !isDbReady()) return;
-  const run = (trigger: 'schedule' | 'startup') => void runScenario(trigger).catch((e) => logger.warn({ err: (e as Error).message }, 'Scenario scan skipped'));
-  cron.schedule(`0 */${env.SCENARIO_INTERVAL_HOURS} * * *`, () => run('schedule'), { timezone: env.APP_TIMEZONE });
-  // Every minute: record the real price for picks whose estimated hold time has elapsed
-  const checks = () =>
-    void backfillChecks(getScenarioRun)
-      .then(() => processDueChecks())
-      .catch((e) => logger.warn({ err: (e as Error).message }, 'Scenario checks failed'));
-  cron.schedule('* * * * *', checks, { timezone: env.APP_TIMEZONE });
-  setTimeout(checks, 30_000);
-  // Catch up after downtime (e.g. the machine was asleep at the scheduled time)
-  setTimeout(async () => {
-    const last = await latestScenario().catch(() => null);
-    if (!last || Date.now() - new Date(last.createdAt).getTime() > env.SCENARIO_INTERVAL_HOURS * 3_600_000) run('startup');
-  }, 60_000);
-  logger.info({ everyHours: env.SCENARIO_INTERVAL_HOURS }, 'Scenario job scheduled');
+/**
+ * Paper Trading V2: entry scan every hour 45 s after the 1h candle closes (exits are processed first),
+ * exit monitor on every 5-minute candle in between. Both share a lock, so they never overlap.
+ */
+function startPaperJob() {
+  if (!env.ENABLE_PAPER_JOB || !isDbReady()) return;
+  const scan = () => void scanPaper().catch((e) => logger.warn({ err: (e as Error).message }, 'Paper scan failed'));
+  const monitor = () => void monitorPaper().catch((e) => logger.warn({ err: (e as Error).message }, 'Paper monitor failed'));
+  cron.schedule('45 0 * * * *', scan);
+  cron.schedule('20 5-55/5 * * * *', monitor);
+  setTimeout(monitor, 20_000);
+  logger.info('Paper Trading V2 jobs scheduled (scan hourly, exits every 5 minutes)');
 }
 
 export function startJobs() {
-  startScenarioJob();
+  startPaperJob();
   cron.schedule(env.AI_ANALYSIS_CRON, () => void runAnalysisCycle(), { timezone: env.APP_TIMEZONE });
   cron.schedule(env.SIGNAL_TRACKER_CRON, () => void trackOpenSignals().catch((e) => logger.warn({ err: (e as Error).message }, 'Signal tracker failed')), { timezone: env.APP_TIMEZONE });
   // Price alerts on live ticks (throttled per symbol)
