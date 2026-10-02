@@ -348,6 +348,9 @@ export const paperState = pgTable('paper_state', {
   highWaterMark: doublePrecision('high_water_mark').notNull(),
   maxDrawdownPct: doublePrecision('max_drawdown_pct').notNull().default(0),
   seq: integer('seq').notNull().default(0),
+  /** Virtual top-ups after the start (not profit). */
+  deposits: doublePrecision('deposits').notNull().default(0),
+  feesPaid: doublePrecision('fees_paid').notNull().default(0),
   lastScanAt: ts('last_scan_at'),
   updatedAt: ts('updated_at').notNull().defaultNow(),
 });
@@ -385,6 +388,7 @@ export const paperTrades = pgTable(
     exitReason: varchar('exit_reason', { length: 16 }).notNull(), // TARGET | CUTLOSS | TIMEOUT
     pnl: doublePrecision('pnl').notNull(),
     pnlPct: doublePrecision('pnl_pct').notNull(),
+    fees: doublePrecision('fees').notNull().default(0),
     holdH: doublePrecision('hold_h').notNull(),
     mfePct: doublePrecision('mfe_pct').notNull(),
     maePct: doublePrecision('mae_pct').notNull(),
@@ -405,7 +409,7 @@ export const paperLedger = pgTable(
   {
     id: serial('id').primaryKey(),
     time: ts('time').notNull(),
-    event: varchar('event', { length: 8 }).notNull(), // START | BUY | ADD | SELL | MARK
+    event: varchar('event', { length: 8 }).notNull(), // START | BUY | ADD | SELL | MARK | TOPUP
     symbol: varchar('symbol', { length: 32 }),
     amount: doublePrecision('amount').notNull(),
     cash: doublePrecision('cash').notNull(),

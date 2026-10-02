@@ -1,9 +1,9 @@
-import { asc, desc, eq } from 'drizzle-orm';
+import { asc, desc, eq, inArray } from 'drizzle-orm';
 import { getDb } from '../../db/client.js';
 import { paperLedger, paperState, paperTrades } from '../../db/schema.js';
 import { median } from '../../utils/math.js';
 import { getTicker } from '../market/market.service.js';
-import { loadPaperPortfolio } from './engine.js';
+import { loadPaperPortfolio, paperSettingsOf } from './engine.js';
 import { MONEY_V2 } from './portfolio.js';
 import { STRATEGY_V2 } from './strategy.js';
 
@@ -43,6 +43,7 @@ export async function paperSummary() {
   const [st] = await db.select().from(paperState).where(eq(paperState.id, 1));
   const trades = await db.select().from(paperTrades);
   const base = MONEY_V2.baseCapital;
+  const paidIn = base + pf.state.deposits;
   const positions = await Promise.all(
     pf.state.positions.map(async (p) => {
       const qty = p.layers.reduce((a, l) => a + l.qty, 0);
@@ -65,7 +66,7 @@ export async function paperSummary() {
         value,
         unrealizedPnl: value - cost,
         unrealizedPct: ((value - cost) / cost) * 100,
-        allocationPct: (cost / base) * 100,
+        allocationPct: (cost / pf.sizingBase) * 100,
         layers: p.layers,
         meta: p.meta,
       };
@@ -79,19 +80,23 @@ export async function paperSummary() {
     startedAt: st.startedAt.toISOString(),
     lastScanAt: st.lastScanAt?.toISOString() ?? null,
     baseCapital: base,
+    deposits: pf.state.deposits,
+    paidInCapital: paidIn,
+    sizingBase: pf.sizingBase,
+    feesPaid: pf.state.feesPaid,
     equity,
     cash: pf.state.cash,
     invested,
     realizedPnl: pf.state.realizedPnl,
     unrealizedPnl: unrealized,
-    totalPnl: equity - base,
-    returnPct: ((equity - base) / base) * 100,
+    totalPnl: equity - paidIn,
+    returnPct: ((equity - paidIn) / paidIn) * 100,
     peakEquity: peak,
     drawdownPct: ((equity - peak) / peak) * 100,
     maxDrawdownPct: Math.min(st.maxDrawdownPct, ((equity - peak) / peak) * 100),
     stats: tradeStats(trades),
     positions,
-    config: { strategy: STRATEGY_V2, money: MONEY_V2, fee: 0, compounding: false },
+    config: { strategy: STRATEGY_V2, money: pf.cfg, settings: paperSettingsOf(st.config) },
   };
 }
 
@@ -109,14 +114,18 @@ export async function paperEquity() {
 export async function paperDaily() {
   const db = getDb();
   const trades = await db.select().from(paperTrades).orderBy(asc(paperTrades.closedAt));
-  const buys = await db.select({ time: paperLedger.time }).from(paperLedger).where(eq(paperLedger.event, 'BUY'));
-  const days = new Map<string, { date: string; buys: number; sells: number; target: number; cutloss: number; timeout: number; pnl: number }>();
-  const day = (d: string) => days.get(d) ?? days.set(d, { date: d, buys: 0, sells: 0, target: 0, cutloss: 0, timeout: 0, pnl: 0 }).get(d)!;
-  for (const b of buys) day(wibDate(b.time)).buys++;
+  const flows = await db.select({ time: paperLedger.time, event: paperLedger.event, amount: paperLedger.amount }).from(paperLedger).where(inArray(paperLedger.event, ['BUY', 'TOPUP']));
+  const days = new Map<string, { date: string; buys: number; sells: number; target: number; cutloss: number; timeout: number; pnl: number; fees: number; topUp: number }>();
+  const day = (d: string) => days.get(d) ?? days.set(d, { date: d, buys: 0, sells: 0, target: 0, cutloss: 0, timeout: 0, pnl: 0, fees: 0, topUp: 0 }).get(d)!;
+  for (const f of flows) {
+    if (f.event === 'BUY') day(wibDate(f.time)).buys++;
+    else day(wibDate(f.time)).topUp += f.amount;
+  }
   for (const t of trades) {
     const d = day(wibDate(t.closedAt));
     d.sells++;
     d.pnl += t.pnl;
+    d.fees += t.fees;
     if (t.exitReason === 'TARGET') d.target++;
     else if (t.exitReason === 'CUTLOSS') d.cutloss++;
     else d.timeout++;
@@ -125,8 +134,8 @@ export async function paperDaily() {
   return [...days.values()]
     .sort((a, b) => (a.date < b.date ? -1 : 1))
     .map((d) => {
-      const start = equity;
-      equity += d.pnl;
+      const start = equity + d.topUp;
+      equity = start + d.pnl;
       return { ...d, startEquity: start, endEquity: equity, returnPct: (d.pnl / start) * 100 };
     });
 }

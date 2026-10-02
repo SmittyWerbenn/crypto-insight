@@ -213,7 +213,7 @@ Koin negatif **tidak dikeluarkan**. Mengeluarkan aset berdasarkan hasil backtest
 
 ```text
 PAPER TRADING V2
-Base Capital   Rp1.000.000      Fee 0      Compounding tidak ada
+Base Capital   Rp1.000.000      Fee 0,1%/sisi (bisa diubah)      Compounding ON (bisa dimatikan)      Top-up manual
 Universe       BTC ETH BNB SOL XRP DOGE ADA AVAX LINK NEAR SUI HBAR ENA WLD QNT MOVR AAVE UNI XLM ZEC PUMP (USDT)
 Scan           setiap jam, 45 detik setelah candle 1h tutup; exit dicek setiap candle 5 menit
 Entry          close 1h > high 20 jam sebelumnya
@@ -238,6 +238,27 @@ Setiap transaksi menyimpan seluruh field pada poin 39 brief:
 - **Portofolio:** eksposur portofolio & klaster, sisa cash, equity.
 
 Capital ledger mencatat setiap BUY/SELL plus titik per jam (cash, invested, realized, unrealized, equity, posisi terbuka, high-water mark, drawdown).
+
+## Fee, compounding & top-up (aktif di Paper Trading V2)
+
+Riset di atas memakai fee 0 dan basis modal tetap, supaya yang terukur adalah edge murni strategi. Di aplikasi ketiganya bisa diatur dari kartu **Biaya, compounding & top-up**:
+
+- **Fee per sisi:** default 0,1% (Binance spot). Dibayar dari cash saat beli dan saat jual. P&L trade selalu bersih dari fee.
+- **Compounding:** default ON. Saat ON, risk, batas per koin, cadangan cash, dan batas eksposur dihitung dari equity saat ini. Saat OFF, semuanya dihitung dari modal disetor.
+- **Top-up:** menambah cash dan modal disetor, dicatat sebagai `TOPUP` di ledger. Top-up tidak dihitung sebagai profit dan tidak dianggap peak baru di drawdown.
+
+Backtest V2 dengan biaya nyata (21 bulan, `scripts/paper-research/fees.ts`):
+
+| Fee per sisi | Compounding | Expectancy/trade | PF | Return | Max DD |
+|---|---|---|---|---|---|
+| 0% | OFF | +0,23% | 1,41 | +33,3% | −4,3% |
+| 0% | ON | +0,23% | 1,40 | +38,8% | −4,9% |
+| 0,075% | OFF | +0,08% | 1,12 | +10,8% | −8,0% |
+| 0,075% | ON | +0,08% | 1,12 | +10,9% | −8,4% |
+| 0,1% | OFF | +0,03% | 1,04 | +3,3% | −10,1% |
+| 0,1% | ON | +0,03% | 1,03 | +2,9% | −10,5% |
+
+Dengan fee 0,1% per sisi, strategi ini hampir impas. Di periode validasi hasilnya negatif (PF 0,91). Compounding hampir tidak berpengaruh karena rata-rata hanya sekitar 3% modal yang terpakai.
 
 ## Langkah berikutnya
 

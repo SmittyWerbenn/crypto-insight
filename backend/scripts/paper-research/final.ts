@@ -2,7 +2,7 @@ import { writeFileSync } from 'node:fs';
 import { runPortfolio, summarize, cands } from './pf.ts';
 import { DIR, SPLITS, backtest, stats, type Cand } from './lib.ts';
 import { STRATEGY_V2 } from '../../src/services/paper/strategy.ts';
-import { MONEY_V2 } from '../../src/services/paper/portfolio.ts';
+import { MONEY_RESEARCH as MONEY_V2 } from '../../src/services/paper/portfolio.ts';
 const S = STRATEGY_V2, M = MONEY_V2;
 const periods = { train: SPLITS.train, valid: SPLITS.valid, test: SPLITS.test, full: [SPLITS.train[0], SPLITS.test[1]] } as Record<string, readonly number[]>;
 // OLD strategy approximation at portfolio level: engine BUY + coin !BEAR, TP 3 ATR / SL 1.5 ATR, 24h, risk 2%, 5 positions, no reserve/cluster caps

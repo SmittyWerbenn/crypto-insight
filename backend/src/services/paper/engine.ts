@@ -7,7 +7,7 @@ import { cache } from '../cache/cache.js';
 import { getCandles } from '../market/candles.service.js';
 import { getTicker } from '../market/market.service.js';
 import { FeatureSeries } from './features.js';
-import { MONEY_V2, PaperPortfolio, type ClosedTrade, type Layer, type LedgerRow, type Position } from './portfolio.js';
+import { MONEY_V2, PaperPortfolio, type ClosedTrade, type Layer, type LedgerRow, type MoneyConfig, type Position } from './portfolio.js';
 import { entryCheck, levelsFor, STRATEGY_V2, UNIVERSE_V2 } from './strategy.js';
 
 /**
@@ -21,6 +21,17 @@ const STATE_ID = 1;
 const LOCK = 'paper:lock';
 const H = 3_600_000;
 const M5 = 300_000;
+
+/** User-adjustable money settings, stored in paper_state.config.settings. */
+export interface PaperSettings {
+  feeRate: number;
+  compounding: boolean;
+}
+const settingsOf = (config: unknown): PaperSettings => {
+  const s = ((config ?? {}) as { settings?: Partial<PaperSettings> }).settings ?? {};
+  return { feeRate: s.feeRate ?? MONEY_V2.feeRate, compounding: s.compounding ?? MONEY_V2.compounding };
+};
+export const moneyFor = (config: unknown): MoneyConfig => ({ ...MONEY_V2, ...settingsOf(config) });
 
 async function withLock<T>(fn: () => Promise<T>): Promise<T | null> {
   if (!isDbReady()) throw new AppError(503, 'DATABASE_UNAVAILABLE', 'Paper Trading membutuhkan database (DATABASE_URL).');
@@ -41,7 +52,7 @@ async function load(at = Date.now()): Promise<PaperPortfolio> {
     const now = new Date(at);
     [st] = await db
       .insert(paperState)
-      .values({ id: STATE_ID, startedAt: now, config: { strategy: STRATEGY_V2, money: MONEY_V2 }, cash: MONEY_V2.baseCapital, highWaterMark: MONEY_V2.baseCapital })
+      .values({ id: STATE_ID, startedAt: now, config: { strategy: STRATEGY_V2, money: MONEY_V2, settings: { feeRate: MONEY_V2.feeRate, compounding: MONEY_V2.compounding } }, cash: MONEY_V2.baseCapital, highWaterMark: MONEY_V2.baseCapital })
       .returning();
     const b = MONEY_V2.baseCapital;
     await db.insert(paperLedger).values({ time: now, event: 'START', symbol: null, amount: b, cash: b, invested: 0, realizedPnl: 0, unrealizedPnl: 0, equity: b, openPositions: 0, highWaterMark: b, drawdownPct: 0 });
@@ -64,7 +75,7 @@ async function load(at = Date.now()): Promise<PaperPortfolio> {
     meta: r.meta as Record<string, unknown>,
     lastBarTime: r.lastBarTime,
   }));
-  return new PaperPortfolio(MONEY_V2, { cash: st.cash, realizedPnl: st.realizedPnl, highWaterMark: st.highWaterMark, maxDrawdownPct: st.maxDrawdownPct, positions, seq: st.seq });
+  return new PaperPortfolio(moneyFor(st.config), { cash: st.cash, realizedPnl: st.realizedPnl, highWaterMark: st.highWaterMark, maxDrawdownPct: st.maxDrawdownPct, positions, seq: st.seq, deposits: st.deposits, feesPaid: st.feesPaid });
 }
 
 /** Write back the account, the open positions, and everything the portfolio logged since it was loaded. */
@@ -74,7 +85,7 @@ async function save(pf: PaperPortfolio, scanAt?: Date) {
     const s = pf.state;
     await tx
       .update(paperState)
-      .set({ cash: s.cash, realizedPnl: s.realizedPnl, highWaterMark: s.highWaterMark, maxDrawdownPct: s.maxDrawdownPct, seq: s.seq, updatedAt: new Date(), ...(scanAt ? { lastScanAt: scanAt } : {}) })
+      .set({ cash: s.cash, realizedPnl: s.realizedPnl, highWaterMark: s.highWaterMark, maxDrawdownPct: s.maxDrawdownPct, seq: s.seq, deposits: s.deposits, feesPaid: s.feesPaid, updatedAt: new Date(), ...(scanAt ? { lastScanAt: scanAt } : {}) })
       .where(eq(paperState.id, STATE_ID));
     await tx.delete(paperPositions);
     if (s.positions.length)
@@ -114,6 +125,7 @@ const tradeRow = (t: ClosedTrade) => ({
   exitReason: t.exitReason,
   pnl: t.pnl,
   pnlPct: t.pnlPct,
+  fees: t.fees,
   holdH: t.holdH,
   mfePct: t.mfePct,
   maePct: t.maePct,
@@ -253,7 +265,7 @@ export async function scanPaper(): Promise<ScanResult | null> {
           continue;
         }
         const lv = levelsFor(price, x.f.atrPct);
-        const base = pf.cfg.baseCapital;
+        const base = pf.sizingBase;
         const r = pf.open({
           symbol: x.symbol,
           time: now,
@@ -296,6 +308,10 @@ export async function scanPaper(): Promise<ScanResult | null> {
           allocationPct: (p.layers[0].cost / base) * 100,
           allocationIdr: p.layers[0].cost,
           riskIdr: base * pf.cfg.riskPerTrade,
+          sizingBase: base,
+          compounding: pf.cfg.compounding,
+          feeRate: pf.cfg.feeRate,
+          entryFee: p.layers[0].fee ?? 0,
           portfolioExposurePct: (invested / base) * 100,
           clusterExposurePct: (clusterCost / base) * 100,
           cashRemaining: pf.state.cash,
@@ -317,4 +333,32 @@ export async function latestScans(limit = 24) {
   return (await getDb().select().from(paperScans).orderBy(desc(paperScans.id)).limit(limit)).map((s) => ({ ...s, time: s.time.toISOString() }));
 }
 
-export { load as loadPaperPortfolio };
+/** Change fee / compounding. Applies to new trades; open positions keep the fee they paid at entry. */
+export async function updatePaperSettings(patch: Partial<PaperSettings>): Promise<PaperSettings> {
+  const r = await withLock(async () => {
+    await load();
+    const db = getDb();
+    const [st] = await db.select().from(paperState).where(eq(paperState.id, STATE_ID));
+    const settings = { ...settingsOf(st.config), ...patch };
+    await db.update(paperState).set({ config: { ...(st.config as object), settings }, updatedAt: new Date() }).where(eq(paperState.id, STATE_ID));
+    logger.info(settings, 'Paper settings updated');
+    return settings;
+  });
+  if (!r) throw new AppError(409, 'PAPER_BUSY', 'Paper Trading sedang memproses. Coba lagi sebentar.');
+  return r;
+}
+
+/** Virtual top-up: adds cash, recorded in the ledger as TOPUP and excluded from P&L / return. */
+export async function topUpPaper(amount: number) {
+  const r = await withLock(async () => {
+    const pf = await load();
+    pf.deposit(Date.now(), amount);
+    await save(pf);
+    logger.info({ amount }, 'Paper top-up');
+    return { cash: pf.state.cash, deposits: pf.state.deposits };
+  });
+  if (!r) throw new AppError(409, 'PAPER_BUSY', 'Paper Trading sedang memproses. Coba lagi sebentar.');
+  return r;
+}
+
+export { load as loadPaperPortfolio, settingsOf as paperSettingsOf };

@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { FlaskConical, Play, Wallet } from 'lucide-react';
 import { api } from '@/services/api';
-import { Badge, Button, Card, CardBody, CardHeader, EmptyState, Notice, PageHeader, Segmented, Stat } from '@/components/ui/primitives';
+import { Badge, Button, Card, CardBody, CardHeader, EmptyState, Input, Notice, PageHeader, Segmented, Stat } from '@/components/ui/primitives';
 import { Table, TBody, TD, TH, THead, TR } from '@/components/ui/table';
 import { baseAsset, fmtDate, fmtPriceSym } from '@/utils/format';
 import { cn } from '@/utils/cn';
@@ -44,6 +44,10 @@ interface Summary {
   startedAt: string;
   lastScanAt: string | null;
   baseCapital: number;
+  deposits: number;
+  paidInCapital: number;
+  sizingBase: number;
+  feesPaid: number;
   equity: number;
   cash: number;
   invested: number;
@@ -56,7 +60,7 @@ interface Summary {
   maxDrawdownPct: number;
   stats: Stats;
   positions: OpenPos[];
-  config: { strategy: Record<string, number | string>; money: Record<string, number | number[]>; fee: number; compounding: boolean };
+  config: { strategy: Record<string, number | string>; money: Record<string, number | number[] | boolean>; settings: { feeRate: number; compounding: boolean } };
 }
 interface Trade {
   id: string;
@@ -68,6 +72,7 @@ interface Trade {
   exitPrice: number;
   exitReason: 'TARGET' | 'CUTLOSS' | 'TIMEOUT';
   cost: number;
+  fees: number;
   pnl: number;
   pnlPct: number;
   holdH: number;
@@ -96,6 +101,8 @@ interface Daily {
   cutloss: number;
   timeout: number;
   pnl: number;
+  fees: number;
+  topUp: number;
   startEquity: number;
   endEquity: number;
   returnPct: number;
@@ -203,7 +210,7 @@ function Live() {
           action={<Button size="sm" variant="outline" loading={scan.isPending} onClick={() => scan.mutate()}><Play className="h-3.5 w-3.5" /> Scan sekarang</Button>}
         />
         <CardBody className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
-          <Stat label="Base Capital" value={fmtRp(s.baseCapital)} sub="tetap (tanpa compounding)" />
+          <Stat label="Modal disetor" value={fmtRp(s.paidInCapital)} sub={s.deposits ? `Awal ${fmtRp(s.baseCapital)} + top-up ${fmtRp(s.deposits)}` : `Basis ukuran posisi ${fmtRp(s.sizingBase)}`} />
           <Stat label="Current Equity" value={fmtRp(s.equity)} tone={tone(s.totalPnl)} sub={`Peak ${fmtRp(s.peakEquity)}`} />
           <Stat label="Total P&L" value={fmtRp(s.totalPnl, true)} tone={tone(s.totalPnl)} sub={`Return ${pct(s.returnPct, 2, true)}`} />
           <Stat label="Max Drawdown" value={pct(s.maxDrawdownPct, 2)} tone="text-down" sub={`Sekarang ${pct(s.drawdownPct, 2)}`} />
@@ -218,6 +225,8 @@ function Live() {
         </CardBody>
       </Card>
 
+      <SettingsCard s={s} />
+
       <Card>
         <CardHeader title="Equity curve & drawdown" subtitle="Setiap BUY/SELL dan titik mark-to-market per jam dari capital ledger" />
         <CardBody>
@@ -226,7 +235,7 @@ function Live() {
       </Card>
 
       <Card>
-        <CardHeader title="Posisi terbuka" subtitle="Alokasi dihitung dari base capital Rp1.000.000" />
+        <CardHeader title="Posisi terbuka" subtitle="Alokasi = % dari basis ukuran posisi (equity jika compounding ON)" />
         <CardBody className="p-0">
           {s.positions.length === 0 ? (
             <div className="p-4"><EmptyState icon={<Wallet className="h-5 w-5" />} title="HOLD CASH">Tidak ada posisi. Cash adalah posisi yang valid saat tidak ada setup yang memenuhi syarat.</EmptyState></div>
@@ -279,7 +288,7 @@ function Live() {
             <p className="p-4 text-sm text-ink-3">Belum ada trade yang selesai.</p>
           ) : (
             <Table>
-              <THead><TR><TH>Tutup</TH><TH>Koin</TH><TH>Alokasi</TH><TH>Entry → Exit</TH><TH>Hasil</TH><TH>P&L</TH><TH>Hold</TH><TH>MFE / MAE</TH><TH>Vol · ATR</TH><TH>Equity</TH></TR></THead>
+              <THead><TR><TH>Tutup</TH><TH>Koin</TH><TH>Alokasi</TH><TH>Entry → Exit</TH><TH>Hasil</TH><TH>P&L (net)</TH><TH>Fee</TH><TH>Hold</TH><TH>MFE / MAE</TH><TH>Vol · ATR</TH><TH>Equity</TH></TR></THead>
               <TBody>
                 {trades.data.map((t) => (
                   <TR key={t.id}>
@@ -289,6 +298,7 @@ function Live() {
                     <TD className="num whitespace-nowrap">{fmtPriceSym(t.avgEntry)} → {fmtPriceSym(t.exitPrice)}</TD>
                     <TD><Badge tone={REASON[t.exitReason].tone}>{REASON[t.exitReason].label}</Badge></TD>
                     <TD className={cn('num', tone(t.pnl))}>{fmtRp(t.pnl, true)} ({pct(t.pnlPct, 2, true)})</TD>
+                    <TD className="num text-ink-3">{fmtRp(t.fees)}</TD>
                     <TD className="num">{t.holdH.toFixed(1)}j</TD>
                     <TD className="num">{pct(t.mfePct, 2, true)} / {pct(t.maePct, 2)}</TD>
                     <TD className="num text-ink-3">{Number(t.meta.volRatio).toFixed(1)}x · {Number(t.meta.atrPct).toFixed(2)}%</TD>
@@ -303,10 +313,10 @@ function Live() {
 
       <div className="grid gap-4 xl:grid-cols-2">
         <Card>
-          <CardHeader title="Ringkasan harian" subtitle="Equity berlanjut tiap hari; alokasi tetap dari Rp1.000.000" />
+          <CardHeader title="Ringkasan harian" subtitle="Equity berlanjut tiap hari (top-up tidak dihitung sebagai P&L)" />
           <CardBody className="p-0">
             <Table>
-              <THead><TR><TH>Tanggal</TH><TH>Awal</TH><TH>BUY/SELL</TH><TH>T/CL/TO</TH><TH>P&L</TH><TH>Akhir</TH><TH>Return</TH></TR></THead>
+              <THead><TR><TH>Tanggal</TH><TH>Awal</TH><TH>BUY/SELL</TH><TH>T/CL/TO</TH><TH>P&L (net)</TH><TH>Fee</TH><TH>Akhir</TH><TH>Return</TH></TR></THead>
               <TBody>
                 {(daily.data ?? []).slice().reverse().map((d) => (
                   <TR key={d.date}>
@@ -315,7 +325,8 @@ function Live() {
                     <TD className="num">{d.buys}/{d.sells}</TD>
                     <TD className="num">{d.target}/{d.cutloss}/{d.timeout}</TD>
                     <TD className={cn('num', tone(d.pnl))}>{fmtRp(d.pnl, true)}</TD>
-                    <TD className="num">{fmtRp(d.endEquity)}</TD>
+                    <TD className="num text-ink-3">{fmtRp(d.fees)}</TD>
+                    <TD className="num">{fmtRp(d.endEquity)}{d.topUp ? <span className="block text-[11px] text-primary">+ top-up {fmtRp(d.topUp)}</span> : null}</TD>
                     <TD className={cn('num', tone(d.returnPct))}>{pct(d.returnPct, 2, true)}</TD>
                   </TR>
                 ))}
@@ -332,6 +343,45 @@ function Live() {
       </div>
       <ConfigCard cfg={s.config} />
     </div>
+  );
+}
+
+function SettingsCard({ s }: { s: Summary }) {
+  const qc = useQueryClient();
+  const [fee, setFee] = useState(String(+(s.config.settings.feeRate * 100).toFixed(3)));
+  const [topUp, setTopUp] = useState('500000');
+  const refresh = () => qc.invalidateQueries({ queryKey: ['paper'] });
+  const save = useMutation({ mutationFn: (body: { feeRatePct?: number; compounding?: boolean }) => api('/api/paper/settings', { method: 'PUT', json: body }), onSuccess: refresh });
+  const add = useMutation({ mutationFn: (amount: number) => api('/api/paper/topup', { method: 'POST', json: { amount } }), onSuccess: refresh });
+  const comp = s.config.settings.compounding;
+  return (
+    <Card>
+      <CardHeader title="Biaya, compounding & top-up" subtitle={`Fee terbayar ${fmtRp(s.feesPaid)} · perubahan berlaku untuk trade berikutnya`} />
+      <CardBody className="grid gap-4 md:grid-cols-3">
+        <div className="space-y-1.5">
+          <div className="text-xs font-semibold text-ink-2">Fee per sisi (%)</div>
+          <div className="flex gap-2">
+            <Input type="number" step="0.005" min="0" max="1" value={fee} onChange={(e) => setFee(e.target.value)} className="w-28" />
+            <Button size="sm" variant="outline" loading={save.isPending} onClick={() => save.mutate({ feeRatePct: Number(fee) })}>Simpan</Button>
+          </div>
+          <p className="text-[11px] text-ink-3">Binance spot 0,1% · dengan diskon BNB 0,075% · 0 = edge murni strategi.</p>
+        </div>
+        <div className="space-y-1.5">
+          <div className="text-xs font-semibold text-ink-2">Compounding</div>
+          <Segmented value={comp ? 'on' : 'off'} onChange={(v) => save.mutate({ compounding: v === 'on' })} options={[{ value: 'off', label: 'OFF' }, { value: 'on', label: 'ON' }]} />
+          <p className="text-[11px] text-ink-3">{comp ? `Ukuran posisi ikut equity (basis sekarang ${fmtRp(s.sizingBase)}).` : `Ukuran posisi dari modal disetor ${fmtRp(s.paidInCapital)}.`}</p>
+        </div>
+        <div className="space-y-1.5">
+          <div className="text-xs font-semibold text-ink-2">Top-up saldo virtual (Rp)</div>
+          <div className="flex gap-2">
+            <Input type="number" step="50000" min="10000" value={topUp} onChange={(e) => setTopUp(e.target.value)} className="w-36" />
+            <Button size="sm" variant="outline" loading={add.isPending} onClick={() => add.mutate(Number(topUp))}>Tambah</Button>
+          </div>
+          <p className="text-[11px] text-ink-3">Masuk ke cash & modal disetor; tidak dihitung sebagai profit.</p>
+        </div>
+        {(save.isError || add.isError) && <Notice tone="error" className="md:col-span-3">{((save.error ?? add.error) as Error).message}</Notice>}
+      </CardBody>
+    </Card>
   );
 }
 
@@ -360,6 +410,7 @@ function AssetTable({ rows }: { rows: Asset[] }) {
 function ConfigCard({ cfg }: { cfg: Summary['config'] }) {
   const s = cfg.strategy as Record<string, number | string>;
   const m = cfg.money as Record<string, number>;
+  const set = cfg.settings;
   const rows: [string, string][] = [
     ['Universe', '21 koin likuid Binance USDT (BTC, ETH, BNB, SOL, …)'],
     ['Entry', `Close 1h > high ${s.breakoutLookback} jam, volume ≥ ${s.minVolRatio}x rata-rata 20 jam, regime koin ${s.coinRegime}`],
@@ -367,13 +418,13 @@ function ConfigCard({ cfg }: { cfg: Summary['config'] }) {
     ['Take profit', `${s.tpAtr} × ATR(1h) dari harga fill`],
     ['Cut loss', `${s.slAtr} × ATR(1h) dari harga fill`],
     ['Timeout', `${s.maxHoldH} jam (maks. 24 jam)`],
-    ['Risk / trade', `${(m.riskPerTrade * 100).toFixed(1)}% base = ${fmtRp(m.baseCapital * m.riskPerTrade)} jika kena cut loss`],
-    ['Ukuran posisi', `Risk ÷ jarak SL, maks ${(m.maxPerCoin * 100).toFixed(0)}% (${fmtRp(m.baseCapital * m.maxPerCoin)}) per koin`],
+    ['Risk / trade', `${(m.riskPerTrade * 100).toFixed(1)}% basis ukuran posisi jika kena cut loss`],
+    ['Ukuran posisi', `Risk ÷ jarak SL, maks ${(m.maxPerCoin * 100).toFixed(0)}% basis per koin`],
     ['Posisi bersamaan', `Maks ${m.maxPositions}, 1 posisi per koin (tanpa re-entry selama masih terbuka)`],
-    ['Cash reserve', `${(m.cashReserve * 100).toFixed(0)}% (${fmtRp(m.baseCapital * m.cashReserve)}) tidak pernah dipakai`],
+    ['Cash reserve', `${(m.cashReserve * 100).toFixed(0)}% basis tidak pernah dipakai`],
     ['Eksposur maks', `Total ${(m.maxExposure * 100).toFixed(0)}% · per klaster korelasi ${(m.maxClusterExposure * 100).toFixed(0)}%`],
     ['Entry layer', 'Full entry (layer 50/50, 40/30/30, 50/30/20 & dinamis diuji — tidak memperbaiki PF)'],
-    ['Biaya & compounding', 'Fee 0 · tanpa compounding · tidak ada top-up saldo virtual'],
+    ['Biaya & compounding', `Fee ${(set.feeRate * 100).toFixed(3)}% per sisi · compounding ${set.compounding ? 'ON (ukuran dari equity)' : 'OFF (ukuran dari modal disetor)'} · top-up manual tersedia`],
   ];
   return (
     <Card>
@@ -403,6 +454,7 @@ interface Research {
   mfeMae: Record<string, { mfeAtrMedian: number; maeAtrMedian: number; n: number }>;
   v2CutlossCategories: Record<string, number>;
   v2CutlossN: number;
+  feeSensitivity: { feePct: number; compounding: boolean; pf: number; returnPct: number; maxDrawdownPct: number; expectancyPct: number }[];
   old: {
     closed: { n: number; target: number; cutloss: number; timeout: number; pnlUsdt: number };
     winRatePct: number;
@@ -499,6 +551,27 @@ function ResearchTab() {
                   );
                 }),
               )}
+            </TBody>
+          </Table>
+        </CardBody>
+      </Card>
+
+      <Card>
+        <CardHeader title="B2. Pengaruh fee & compounding (V2, 21 bulan)" subtitle="Edge per trade tipis — fee menentukan apakah strategi untung" />
+        <CardBody className="p-0">
+          <Table>
+            <THead><TR><TH>Fee per sisi</TH><TH>Compounding</TH><TH>Expectancy/trade</TH><TH>PF</TH><TH>Return</TH><TH>Max DD</TH></TR></THead>
+            <TBody>
+              {r.feeSensitivity.map((f) => (
+                <TR key={`${f.feePct}${f.compounding}`}>
+                  <TD className="num">{f.feePct.toFixed(3)}%</TD>
+                  <TD>{f.compounding ? 'ON' : 'OFF'}</TD>
+                  <TD className={cn('num', tone(f.expectancyPct))}>{pct(f.expectancyPct, 3, true)}</TD>
+                  <TD className="num">{f.pf.toFixed(2)}</TD>
+                  <TD className={cn('num', tone(f.returnPct))}>{pct(f.returnPct, 1, true)}</TD>
+                  <TD className="num text-down">{pct(f.maxDrawdownPct, 1)}</TD>
+                </TR>
+              ))}
             </TBody>
           </Table>
         </CardBody>
@@ -633,11 +706,11 @@ export default function PaperTrading() {
     <div className="space-y-4">
       <PageHeader
         title="Paper Trading V2"
-        description="Simulasi modal virtual Rp1.000.000: breakout volume intraday, holding maks. 8 jam, tanpa fee, tanpa compounding. Bukan order nyata."
+        description="Simulasi modal virtual Rp1.000.000: breakout volume intraday, holding maks. 8 jam, fee & compounding bisa diatur. Bukan order nyata."
         actions={<Segmented value={tab} onChange={setTab} options={[{ value: 'live', label: 'Live V2' }, { value: 'research', label: 'Riset & Backtest' }]} />}
       />
       {tab === 'live' ? <Live /> : <ResearchTab />}
-      <p className="flex items-center gap-1.5 text-xs text-ink-3"><FlaskConical className="h-3.5 w-3.5" /> Hasil backtest bukan jaminan. Tanpa fee: di exchange sungguhan biaya ±0,2–0,3% per trade akan menghapus sebagian besar edge ini.</p>
+      <p className="flex items-center gap-1.5 text-xs text-ink-3"><FlaskConical className="h-3.5 w-3.5" /> Hasil backtest bukan jaminan. Edge V2 tipis: backtest 21 bulan +33% tanpa fee, +11% dengan fee 0,075%/sisi, +3% dengan fee 0,1%/sisi (max DD −10%).</p>
     </div>
   );
 }

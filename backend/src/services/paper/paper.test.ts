@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { MONEY_V2, PaperPortfolio } from './portfolio.js';
+import { MONEY_RESEARCH, PaperPortfolio } from './portfolio.js';
 import { entryCheck, levelsFor, STRATEGY_V2 } from './strategy.js';
 import type { BtcContext, CoinFeatures } from './features.js';
 
-const money = { ...MONEY_V2 };
+const money = { ...MONEY_RESEARCH };
 const open = (pf: PaperPortfolio, symbol: string, price = 100, slPct = 2.5) => pf.open({ symbol, time: 0, price, tp: price * 1.0075, sl: price * (1 - slPct / 100), slPct, atrPct: 1, maxHoldH: 8 });
 
 describe('Paper Trading V2 portfolio', () => {
@@ -57,6 +57,37 @@ describe('Paper Trading V2 portfolio', () => {
     expect(pf.addLayer(p, 1, 99)).toMatch(/averaging down/);
     expect(pf.addLayer(p, 1, 101)).toBeNull();
     expect(p.layers).toHaveLength(2);
+  });
+
+  it('charges the fee on both sides and nets it out of P&L', () => {
+    const pf = new PaperPortfolio({ ...money, feeRate: 0.001 });
+    const p = open(pf, 'SOLUSDT', 100).position!;
+    expect(pf.state.cash).toBeCloseTo(800_000 - 200);
+    const t = pf.close(p, 1, 102, 'TARGET');
+    // gross +4.000, fees 200 (buy) + 204 (sell)
+    expect(t.fees).toBeCloseTo(404);
+    expect(t.pnl).toBeCloseTo(3_596);
+    expect(pf.state.cash).toBeCloseTo(1_003_596);
+    expect(pf.state.feesPaid).toBeCloseTo(404);
+  });
+
+  it('compounding sizes from current equity; without it from paid-in capital', () => {
+    const pf = new PaperPortfolio({ ...money, compounding: true });
+    pf.close(open(pf, 'SOLUSDT', 100).position!, 1, 150, 'TARGET'); // equity 1.100.000
+    expect(open(pf, 'ETHUSDT', 100).position!.layers[0].cost).toBeCloseTo(220_000);
+    const fixed = new PaperPortfolio(money);
+    fixed.close(open(fixed, 'SOLUSDT', 100).position!, 1, 150, 'TARGET');
+    expect(open(fixed, 'ETHUSDT', 100).position!.layers[0].cost).toBe(200_000);
+  });
+
+  it('top-up adds cash and paid-in capital without counting as profit or a new peak', () => {
+    const pf = new PaperPortfolio(money);
+    pf.deposit(1, 500_000);
+    expect(pf.state.cash).toBe(1_500_000);
+    expect(pf.state.realizedPnl).toBe(0);
+    expect(pf.sizingBase).toBe(1_500_000);
+    expect(pf.ledger.at(-1)!.drawdownPct).toBe(0);
+    expect(pf.ledger.at(-1)!.event).toBe('TOPUP');
   });
 
   it('tracks high-water mark and drawdown on marks', () => {

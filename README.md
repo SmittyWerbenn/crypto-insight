@@ -31,7 +31,7 @@ Semua estimasi berasal dari data dan simulasi historis — bukan jaminan.
 
 ## Paper Trading V2
 
-Menu **Paper Trading V2** (`/paper`, menggantikan Skenario Otomatis) menjalankan portofolio simulasi dengan modal virtual **Rp1.000.000**, tanpa fee dan tanpa compounding.
+Menu **Paper Trading V2** (`/paper`, menggantikan Skenario Otomatis) menjalankan portofolio simulasi dengan modal virtual **Rp1.000.000**. Fee per sisi (default 0,1%), compounding (default ON), dan top-up saldo bisa diatur dari halaman.
 
 - **Entry:** breakout high 20 jam dengan volume ≥ 3×, koin ber-regime BULL, hanya jika BTC naik dalam 30 hari.
 - **Exit:** TP 0,75 ATR, SL 2,5 ATR, timeout 8 jam.
@@ -41,7 +41,7 @@ Menu **Paper Trading V2** (`/paper`, menggantikan Skenario Otomatis) menjalankan
 
 Semua transaksi, capital ledger (equity curve), ringkasan harian, per aset, dan log scan (termasuk alasan *HOLD CASH*) disimpan di tabel `paper_*`. Tab **Riset & Backtest** menampilkan bukti setiap parameter: baseline strategi lama, training/validasi/test, dan grid robustness. Detail lengkap ada di [docs/paper-trading-v2.md](docs/paper-trading-v2.md). Harness riset ada di `backend/scripts/paper-research/`.
 
-API: `GET /api/paper`, `/api/paper/trades`, `/api/paper/equity`, `/api/paper/daily`, `/api/paper/assets`, `/api/paper/scans`, `/api/paper/research`, `POST /api/paper/scan`.
+API: `GET /api/paper`, `/api/paper/trades`, `/api/paper/equity`, `/api/paper/daily`, `/api/paper/assets`, `/api/paper/scans`, `/api/paper/research`, `POST /api/paper/scan`, `PUT /api/paper/settings`, `POST /api/paper/topup`.
 
 Data Skenario Otomatis lama diarsipkan di `docs/research/paper-trading-v1-archive.json.gz` sebelum tabelnya dihapus (migration `0004_drop_legacy_scenario`).
 

@@ -3,11 +3,12 @@ import { clusterOf } from './strategy.js';
 /**
  * Paper Trading V2 money management. Pure bookkeeping, shared by the research backtest and the live engine.
  *
- * Rules (from the task brief):
- *  - Base capital is fixed (Rp1.000.000). Sizing, allocation caps and risk budgets always use the base, never equity
- *    → no compounding. Profit and loss still move cash and equity.
- *  - No fees: P&L = (exit − entry) × quantity.
- *  - A buy needs real cash: if cash (minus the reserve) cannot pay for it, the trade is skipped. No virtual top-ups.
+ *  - Sizing base: without compounding it is the paid-in capital (base + top-ups) and never grows with profit;
+ *    with compounding it is the current equity at cost (cash + open positions at cost), so profits and losses
+ *    resize every cap (risk, per coin, reserve, exposure, cluster).
+ *  - Fees: `feeRate` per side on the traded notional, paid from cash at buy and at sell. 0 = pure strategy edge.
+ *  - Top-ups only through `deposit()`; they are tracked separately so return and drawdown measure trading only.
+ *  - A buy needs real cash: if cash (minus the reserve) cannot pay amount + fee, the trade is skipped.
  *  - Caps on positions, per-coin allocation, total exposure and correlated (cluster) exposure; when hit → skip.
  */
 export interface MoneyConfig {
@@ -25,6 +26,10 @@ export interface MoneyConfig {
   maxClusterExposure: number;
   /** Entry layers as fractions of the planned position (sum 1). [1] = full entry. */
   layers: number[];
+  /** Fee per side as a fraction of notional (0.001 = 0.1%, Binance spot). */
+  feeRate: number;
+  /** Size from current equity (true) or from paid-in capital (false). */
+  compounding: boolean;
 }
 
 export const MONEY_V2: MoneyConfig = {
@@ -36,13 +41,20 @@ export const MONEY_V2: MoneyConfig = {
   maxExposure: 0.7,
   maxClusterExposure: 0.5,
   layers: [1],
+  feeRate: 0.001,
+  compounding: true,
 };
+
+/** The research setting (results in docs/paper-trading-v2.md): no fees, fixed base. */
+export const MONEY_RESEARCH: MoneyConfig = { ...MONEY_V2, feeRate: 0, compounding: false };
 
 export interface Layer {
   time: number;
   price: number;
   qty: number;
   cost: number;
+  /** Fee paid on this buy. */
+  fee?: number;
 }
 
 export interface Position {
@@ -77,8 +89,10 @@ export interface ClosedTrade {
   cost: number;
   exitPrice: number;
   exitReason: 'TARGET' | 'CUTLOSS' | 'TIMEOUT';
+  /** Net of all fees (buy + sell). */
   pnl: number;
   pnlPct: number;
+  fees: number;
   holdH: number;
   mfePct: number;
   maePct: number;
@@ -92,7 +106,7 @@ export interface ClosedTrade {
 
 export interface LedgerRow {
   time: number;
-  event: 'START' | 'BUY' | 'ADD' | 'SELL' | 'MARK';
+  event: 'START' | 'BUY' | 'ADD' | 'SELL' | 'MARK' | 'TOPUP';
   symbol: string | null;
   amount: number;
   cash: number;
@@ -112,6 +126,9 @@ export interface PortfolioState {
   maxDrawdownPct: number;
   positions: Position[];
   seq: number;
+  /** Total virtual top-ups after the start (not counted as profit). */
+  deposits: number;
+  feesPaid: number;
 }
 
 const qtyOf = (p: Position) => p.layers.reduce((a, l) => a + l.qty, 0);
@@ -126,7 +143,20 @@ export class PaperPortfolio {
     readonly cfg: MoneyConfig = MONEY_V2,
     state?: PortfolioState,
   ) {
-    this.state = state ?? { cash: cfg.baseCapital, realizedPnl: 0, highWaterMark: cfg.baseCapital, maxDrawdownPct: 0, positions: [], seq: 0 };
+    this.state = state ?? { cash: cfg.baseCapital, realizedPnl: 0, highWaterMark: cfg.baseCapital, maxDrawdownPct: 0, positions: [], seq: 0, deposits: 0, feesPaid: 0 };
+  }
+
+  /** Capital that sizing and caps are computed from (see header). */
+  get sizingBase() {
+    return this.cfg.compounding ? this.state.cash + this.invested : this.cfg.baseCapital + this.state.deposits;
+  }
+
+  /** Add virtual capital. */
+  deposit(time: number, amount: number) {
+    this.state.cash += amount;
+    this.state.deposits += amount;
+    this.state.highWaterMark += amount;
+    return this.log(time, 'TOPUP', null, amount);
   }
 
   get invested() {
@@ -140,13 +170,13 @@ export class PaperPortfolio {
 
   /** Planned Rupiah size from the risk budget and stop distance, capped per coin. */
   plannedSize(slPct: number) {
-    const base = this.cfg.baseCapital;
+    const base = this.sizingBase;
     return Math.min((base * this.cfg.riskPerTrade) / (slPct / 100), base * this.cfg.maxPerCoin);
   }
 
   /** Null when a new position of `amount` (first layer) is allowed, otherwise the skip reason. */
   canOpen(symbol: string, amount: number): string | null {
-    const base = this.cfg.baseCapital;
+    const base = this.sizingBase;
     const st = this.state;
     if (st.positions.some((p) => p.symbol === symbol)) return 'Koin sudah punya posisi terbuka (1 posisi per koin)';
     if (st.positions.length >= this.cfg.maxPositions) return `Maks. ${this.cfg.maxPositions} posisi bersamaan tercapai`;
@@ -156,7 +186,7 @@ export class PaperPortfolio {
   private capCheck(symbol: string, amount: number, base: number): string | null {
     const st = this.state;
     if (amount <= 0) return 'Ukuran posisi nol';
-    if (st.cash - amount < base * this.cfg.cashReserve - 1e-6) return 'Cash tidak cukup (cadangan cash dijaga)';
+    if (st.cash - amount * (1 + this.cfg.feeRate) < base * this.cfg.cashReserve - 1e-6) return 'Cash tidak cukup (cadangan cash dijaga)';
     if (this.invested + amount > base * this.cfg.maxExposure + 1e-6) return `Eksposur total > ${this.cfg.maxExposure * 100}% modal`;
     const cl = clusterOf(symbol);
     const clusterCost = st.positions.filter((p) => p.cluster === cl).reduce((a, p) => a + costOf(p), 0);
@@ -177,7 +207,7 @@ export class PaperPortfolio {
       cluster: clusterOf(o.symbol),
       openedAt: o.time,
       plannedCost: planned,
-      layers: [{ time: o.time, price: o.price, qty: first / o.price, cost: first }],
+      layers: [{ time: o.time, price: o.price, qty: first / o.price, cost: first, fee: first * this.cfg.feeRate }],
       tp: o.tp,
       sl: o.sl,
       timeoutAt: o.time + o.maxHoldH * 3_600_000,
@@ -186,7 +216,8 @@ export class PaperPortfolio {
       low: o.price,
       meta: o.meta ?? {},
     };
-    this.state.cash -= first;
+    this.state.cash -= first * (1 + this.cfg.feeRate);
+    this.state.feesPaid += first * this.cfg.feeRate;
     this.state.positions.push(p);
     this.log(o.time, 'BUY', o.symbol, first);
     return { position: p, reason: null };
@@ -199,10 +230,11 @@ export class PaperPortfolio {
     const avg = costOf(p) / qtyOf(p);
     if (price < avg) return 'Harga di bawah rata-rata entry — tidak averaging down';
     const amount = p.plannedCost * this.cfg.layers[k];
-    const reason = this.capCheck(p.symbol, amount, this.cfg.baseCapital);
+    const reason = this.capCheck(p.symbol, amount, this.sizingBase);
     if (reason) return reason;
-    p.layers.push({ time, price, qty: amount / price, cost: amount });
-    this.state.cash -= amount;
+    p.layers.push({ time, price, qty: amount / price, cost: amount, fee: amount * this.cfg.feeRate });
+    this.state.cash -= amount * (1 + this.cfg.feeRate);
+    this.state.feesPaid += amount * this.cfg.feeRate;
     this.log(time, 'ADD', p.symbol, amount);
     return null;
   }
@@ -211,8 +243,11 @@ export class PaperPortfolio {
     const qty = qtyOf(p);
     const cost = costOf(p);
     const proceeds = qty * price;
-    const pnl = proceeds - cost;
-    this.state.cash += proceeds;
+    const exitFee = proceeds * this.cfg.feeRate;
+    const fees = exitFee + p.layers.reduce((a, l) => a + (l.fee ?? 0), 0);
+    const pnl = proceeds - cost - fees;
+    this.state.cash += proceeds - exitFee;
+    this.state.feesPaid += exitFee;
     this.state.realizedPnl += pnl;
     this.state.positions = this.state.positions.filter((x) => x !== p);
     const avgEntry = cost / qty;
@@ -232,6 +267,7 @@ export class PaperPortfolio {
       exitReason: reason,
       pnl,
       pnlPct: (pnl / cost) * 100,
+      fees,
       holdH: (time - p.openedAt) / 3_600_000,
       mfePct: (Math.max(p.high, reason === 'TARGET' ? price : p.high) / first - 1) * 100,
       maePct: (Math.min(p.low, reason === 'CUTLOSS' ? price : p.low) / first - 1) * 100,
@@ -253,6 +289,7 @@ export class PaperPortfolio {
   private log(time: number, event: LedgerRow['event'], symbol: string | null, amount: number, prices: Record<string, number> = {}): LedgerRow {
     const equity = this.equity(prices);
     const st = this.state;
+    // High-water mark includes top-ups (deposit() raises it too), so a top-up is never a "recovery" or a new peak from trading
     st.highWaterMark = Math.max(st.highWaterMark, equity);
     const dd = st.highWaterMark ? ((equity - st.highWaterMark) / st.highWaterMark) * 100 : 0;
     st.maxDrawdownPct = Math.min(st.maxDrawdownPct, dd);

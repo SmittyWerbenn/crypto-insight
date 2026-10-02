@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { isDbReady } from '../db/client.js';
 import { AppError } from '../utils/errors.js';
-import { latestScans, scanPaper } from '../services/paper/engine.js';
+import { latestScans, scanPaper, topUpPaper, updatePaperSettings } from '../services/paper/engine.js';
 import { paperAssets, paperDaily, paperEquity, paperSummary, paperTradesList } from '../services/paper/paper.service.js';
 import { RESEARCH_V2 } from '../services/paper/research-v2.data.js';
 
@@ -36,6 +36,21 @@ export async function paperRoutes(app: FastifyInstance) {
     const r = await scanPaper();
     if (!r) throw new AppError(409, 'PAPER_BUSY', 'Paper Trading sedang memproses. Coba lagi sebentar.');
     return r;
+  });
+
+  /** Fee per side (0–1%) and compounding on/off. Applies to new trades. */
+  app.put('/api/paper/settings', async (req) => {
+    const b = z
+      .object({ feeRatePct: z.coerce.number().min(0).max(1).optional(), compounding: z.boolean().optional() })
+      .refine((v) => v.feeRatePct !== undefined || v.compounding !== undefined, 'Tidak ada pengaturan yang diubah')
+      .parse(req.body ?? {});
+    return updatePaperSettings({ ...(b.feeRatePct !== undefined ? { feeRate: b.feeRatePct / 100 } : {}), ...(b.compounding !== undefined ? { compounding: b.compounding } : {}) });
+  });
+
+  /** Add virtual capital (recorded as TOPUP; not counted as profit). */
+  app.post('/api/paper/topup', { config: { rateLimit: { max: 5, timeWindow: '1 minute' } } }, async (req) => {
+    const { amount } = z.object({ amount: z.coerce.number().min(10_000).max(100_000_000) }).parse(req.body ?? {});
+    return topUpPaper(amount);
   });
 
   /** Research behind V2: old-system baseline, backtest/validation/test results, robustness grid. Static. */
