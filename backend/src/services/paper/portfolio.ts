@@ -53,10 +53,13 @@ export const MONEY_RESEARCH: MoneyConfig = { ...MONEY_V2, feeRate: 0, compoundin
  * Agresif runs more positions with a bigger allocation and a small reserve. Every profile keeps the
  * per-coin, total-exposure and correlated-cluster caps (see docs/paper-trading-v2.md, "3 profil").
  */
+/** Virtual starting capital of each profile account. */
+export const PAPER_CAPITAL = 10_000_000;
+
 export const MONEY_PROFILES: Record<ProfileId, MoneyConfig> = {
-  AMAN: { ...MONEY_V2, riskPerTrade: 0.005, maxPerCoin: 0.2, maxPositions: 3, cashReserve: 0.4, maxExposure: 0.6, maxClusterExposure: 0.4 },
-  MENENGAH: { ...MONEY_V2, riskPerTrade: 0.0075, maxPerCoin: 0.2, maxPositions: 4, cashReserve: 0.3, maxExposure: 0.7, maxClusterExposure: 0.5 },
-  AGRESIF: { ...MONEY_V2, riskPerTrade: 0.0125, maxPerCoin: 0.25, maxPositions: 6, cashReserve: 0.1, maxExposure: 0.9, maxClusterExposure: 0.6 },
+  AMAN: { ...MONEY_V2, baseCapital: PAPER_CAPITAL, riskPerTrade: 0.005, maxPerCoin: 0.2, maxPositions: 3, cashReserve: 0.4, maxExposure: 0.6, maxClusterExposure: 0.4 },
+  MENENGAH: { ...MONEY_V2, baseCapital: PAPER_CAPITAL, riskPerTrade: 0.0075, maxPerCoin: 0.2, maxPositions: 4, cashReserve: 0.3, maxExposure: 0.7, maxClusterExposure: 0.5 },
+  AGRESIF: { ...MONEY_V2, baseCapital: PAPER_CAPITAL, riskPerTrade: 0.0125, maxPerCoin: 0.25, maxPositions: 6, cashReserve: 0.1, maxExposure: 0.9, maxClusterExposure: 0.6 },
 };
 
 export interface Layer {

@@ -11,7 +11,7 @@ import { MONEY_PROFILES, MONEY_V2, PaperPortfolio, type ClosedTrade, type Layer,
 import { btcState, isSignal, levelsFor, priceMoved, PROFILE_IDS, PROFILE_LABEL, PROFILES, rejectReasons, UNIVERSE_V2, type ProfileId, type Rejection } from './strategy.js';
 
 /**
- * Live Paper Trading V2 engine: three accounts (Aman, Menengah, Agresif), Rp1.000.000 each, same market data.
+ * Live Paper Trading V2 engine: three accounts (Aman, Menengah, Agresif), Rp10.000.000 each, same market data.
  * Runs the exact rules of the research backtest:
  *  - every 5 minutes: walk each open position through the newly closed 5m candles (stop before target in a tie,
  *    timeout at the hold limit) — same as the backtest's exit simulation;

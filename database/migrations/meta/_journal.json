@@ -50,6 +50,13 @@
       "when": 1791013887229,
       "tag": "0006_paper_profiles",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1791042837976,
+      "tag": "0007_paper_capital_10m",
+      "breakpoints": true
     }
   ]
 }

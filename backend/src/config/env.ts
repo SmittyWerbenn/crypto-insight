@@ -59,7 +59,7 @@ const EnvSchema = z.object({
   ENABLE_REGIME_FILTER: bool.default(true),
   AI_ANALYSIS_CRON: z.string().default('*/15 * * * *'),
   AI_MARKET_SUMMARY_MINUTES: z.coerce.number().int().positive().default(60),
-  // Paper Trading V2: hourly entry scan + 5-minute exit monitor on a simulated Rp1.000.000 portfolio
+  // Paper Trading V2: hourly entry scan + 5-minute exit monitor on a simulated portfolio (3 profiles × Rp10.000.000)
   ENABLE_PAPER_JOB: bool.default(true),
   SIGNAL_TRACKER_CRON: z.string().default('*/5 * * * *'),
   TRACKED_SYMBOLS: z.string().default('BTCUSDT,ETHUSDT,BNBUSDT,SOLUSDT,XRPUSDT,DOGEUSDT,ADAUSDT,AVAXUSDT'),

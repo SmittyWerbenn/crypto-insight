@@ -69,7 +69,7 @@ export function CompareCard() {
     <Card>
       <CardHeader
         title="Perbandingan 3 profil (live)"
-        subtitle={`${c.scans.n} scan per jam · ${c.scans.withSignal} scan dengan signal · ${c.scans.signals} signal breakout. Setiap profil punya akun Rp1.000.000 sendiri.`}
+        subtitle={`${c.scans.n} scan per jam · ${c.scans.withSignal} scan dengan signal · ${c.scans.signals} signal breakout. Setiap profil punya akun Rp10.000.000 sendiri.`}
         action={<Segmented value={hours} onChange={setHours} options={[{ value: '24', label: '24 jam' }, { value: '168', label: '7 hari' }, { value: 'all', label: 'Semua' }]} />}
       />
       <CardBody className="space-y-4">
@@ -241,7 +241,7 @@ export function ProfilesResearch() {
     ['TIMEOUT', (x) => pct(x.timeoutPct)],
     ['Expectancy / trade (net)', (x) => pct(x.expectancyPct, 3, true)],
     ['Profit factor', (x) => x.profitFactor.toFixed(2)],
-    ['Return (Rp1 jt)', (x) => <span className={tone(x.returnPct)}>{pct(x.returnPct, 1, true)} → {fmtRp(x.finalEquity)}</span>],
+    ['Return (Rp10 jt)', (x) => <span className={tone(x.returnPct)}>{pct(x.returnPct, 1, true)} → {fmtRp(x.finalEquity)}</span>],
     ['Max drawdown', (x) => pct(x.maxDrawdownPct, 1), 'text-down'],
     ['Loss streak terpanjang', (x) => x.longestLossStreak],
     ['Capital utilization rata-rata / maks', (x) => `${pct(x.avgInvestedPct, 1)} / ${pct(x.maxInvestedPct, 0)}`],
@@ -274,7 +274,7 @@ export function ProfilesResearch() {
 
       <Card>
         <CardHeader
-          title="J. Funnel & hasil portofolio Rp1.000.000 per profil (21 bulan)"
+          title="J. Funnel & hasil portofolio Rp10.000.000 per profil (21 bulan)"
           subtitle="Signal tersedia → lolos filter → dibeli → TARGET / CUTLOSS → P&L → drawdown. Tanpa compounding."
           action={<Segmented value={fee} onChange={setFee} options={[{ value: 'fee', label: `Fee ${(r.feeRate * 100).toFixed(1)}%` }, { value: 'noFee', label: 'Tanpa fee' }]} />}
         />
@@ -294,7 +294,7 @@ export function ProfilesResearch() {
               <LineChart data={curve} margin={{ top: 8, right: 8, left: 4, bottom: 0 }}>
                 <CartesianGrid stroke="#eef1f6" vertical={false} />
                 <XAxis dataKey="date" tick={AXIS} axisLine={false} tickLine={false} minTickGap={40} />
-                <YAxis tickFormatter={(v) => `${(v / 1e6).toFixed(2)} jt`} tick={AXIS} axisLine={false} tickLine={false} width={60} domain={['auto', 'auto']} />
+                <YAxis tickFormatter={(v) => `${(v / 1e6).toFixed(1)} jt`} tick={AXIS} axisLine={false} tickLine={false} width={60} domain={['auto', 'auto']} />
                 <Tooltip formatter={(v, name) => [fmtRp(Number(v)), PROFILE_LABEL[name as ProfileId]]} labelClassName="text-ink-3" />
                 <Legend formatter={(v: string) => <span className="text-xs text-ink-2">{PROFILE_LABEL[v as ProfileId]}</span>} />
                 {PROFILES.map((p) => <Line key={p.id} dataKey={p.id} stroke={p.color} strokeWidth={2} dot={false} isAnimationActive={false} connectNulls />)}

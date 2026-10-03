@@ -5,7 +5,7 @@ import { writeFileSync } from 'node:fs';
 import { runPortfolio, summarize, cands } from './pf.ts';
 import { DIR, SPLITS, backtest, type Cand, type Split } from './lib.ts';
 import { PROFILES, PROFILE_IDS, STRATEGY_V2, btcState, isSignal, rejectReasons, type ProfileId, type StrategyConfig } from '../../src/services/paper/strategy.ts';
-import { MONEY_PROFILES, MONEY_V2 } from '../../src/services/paper/portfolio.ts';
+import { MONEY_PROFILES, MONEY_V2, PAPER_CAPITAL } from '../../src/services/paper/portfolio.ts';
 
 const FEE = 0.001;
 const periods: Record<string, readonly number[]> = { train: SPLITS.train, valid: SPLITS.valid, test: SPLITS.test, full: [SPLITS.train[0], SPLITS.test[1]] };
@@ -21,7 +21,7 @@ for (const p of PROFILE_IDS) {
   for (const fee of [FEE, 0]) {
     for (const [k, [a, b]] of Object.entries(periods)) {
       const r = runPortfolio({ from: a, to: b, strat: PROFILES[p], money: { ...MONEY_PROFILES[p], feeRate: fee, compounding: false }, funnel: true });
-      const s = summarize(r.pf, 1e6);
+      const s = summarize(r.pf, PAPER_CAPITAL);
       const row = {
         ...s,
         perMonth: { signals: r2(r.funnel.signals / months(k), 1), trades: r2(s.trades / months(k), 1) },
@@ -92,7 +92,7 @@ out.marginal = [
 ];
 
 // 4) Baseline: the first V2 rules with the same fee, for reference
-out.baselineV2 = summarize(runPortfolio({ from: periods.full[0], to: periods.full[1], strat: STRATEGY_V2, money: { ...MONEY_V2, feeRate: FEE, compounding: false } }).pf, 1e6);
+out.baselineV2 = summarize(runPortfolio({ from: periods.full[0], to: periods.full[1], strat: STRATEGY_V2, money: { ...MONEY_V2, baseCapital: PAPER_CAPITAL, feeRate: FEE, compounding: false } }).pf, PAPER_CAPITAL);
 
 writeFileSync(`${DIR}/profiles-report.json`, JSON.stringify(out));
 console.log('written', `${DIR}/profiles-report.json`);

@@ -148,7 +148,7 @@ function EquityCurve({ points, base, marks }: { points: { time: number; equity: 
   if (new Set(points.map((p) => p.time)).size < 2) return <p className="text-sm text-ink-3">Kurva ekuitas muncul setelah beberapa scan per jam.</p>;
   return (
     <div className="space-y-2">
-      <div className="h-64" role="img" aria-label="Kurva ekuitas modal Rp1.000.000">
+      <div className="h-64" role="img" aria-label="Kurva ekuitas">
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={points} margin={{ top: 8, right: 8, left: 4, bottom: 0 }}>
             <defs>
@@ -544,7 +544,7 @@ function ResearchTab() {
       </Card>
 
       <Card>
-        <CardHeader title="B. Backtest portofolio Rp1.000.000 — lama vs V2" subtitle="Tanpa fee, tanpa compounding, exit dicek per candle 5 menit (sentuh TP & SL di candle yang sama = cut loss)" />
+        <CardHeader title="B. Backtest portofolio Rp1.000.000 (riset awal) — lama vs V2" subtitle="Tanpa fee, tanpa compounding, exit dicek per candle 5 menit (sentuh TP & SL di candle yang sama = cut loss)" />
         <CardBody className="p-0">
           <Table>
             <THead><TR><TH>Periode</TH><TH>Strategi</TH><TH>Trade</TH><TH>TARGET</TH><TH>CUTLOSS</TH><TH>TIMEOUT</TH><TH>Expectancy</TH><TH>PF</TH><TH>Return</TH><TH>Max DD</TH><TH>Hold</TH><TH>Loss streak</TH></TR></THead>
@@ -726,7 +726,7 @@ export default function PaperTrading() {
     <div className="space-y-4">
       <PageHeader
         title="Paper Trading V2"
-        description="Tiga akun virtual Rp1.000.000 (Aman, Menengah, Agresif) membaca signal breakout yang sama dengan tingkat selektivitas berbeda. Holding maks. 12 jam, fee & compounding bisa diatur. Bukan order nyata."
+        description="Tiga akun virtual Rp10.000.000 (Aman, Menengah, Agresif) membaca signal breakout yang sama dengan tingkat selektivitas berbeda. Holding maks. 12 jam, fee & compounding bisa diatur. Bukan order nyata."
         actions={<Segmented value={tab} onChange={setTab} options={[{ value: 'live', label: 'Live' }, { value: 'research', label: 'Riset & Backtest' }]} />}
       />
       {tab === 'live' ? <Live profile={profile} setProfile={setProfile} /> : <ResearchTab />}

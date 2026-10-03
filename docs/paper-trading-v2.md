@@ -262,7 +262,7 @@ Dengan fee 0,1% per sisi, strategi ini hampir impas. Di periode validasi hasilny
 
 ## 3 profil: Aman / Menengah / Agresif (3 Oktober 2026)
 
-Paper Trading sekarang menjalankan **tiga akun Rp1.000.000** yang membaca signal yang sama. Ketiga akun dibedakan oleh **selektivitas**, bukan hanya ukuran posisi.
+Paper Trading sekarang menjalankan **tiga akun Rp10.000.000** (modal dinaikkan dari Rp1.000.000 pada 3 Oktober 2026; persentase hasil tidak berubah karena ukuran posisi proporsional terhadap modal) yang membaca signal yang sama. Ketiga akun dibedakan oleh **selektivitas**, bukan hanya ukuran posisi.
 
 - **Signal** adalah setiap close 1h di atas high 20 jam dengan volume ≥ 1,5x.
   - Jika tidak ada signal, artinya pasar memang tidak memberi peluang.
@@ -294,7 +294,7 @@ Paper Trading sekarang menjalankan **tiga akun Rp1.000.000** yang membaca signal
 
 - **Skor engine** juga tidak dipakai. Skor 90–100 justru negatif di training dan test, dan tidak ada hubungan yang konsisten antara skor dan hasil.
 
-### Hasil portofolio 21 bulan (fee 0,1%/sisi, tanpa compounding)
+### Hasil portofolio Rp10.000.000, 21 bulan (fee 0,1%/sisi, tanpa compounding)
 
 | | Aman | Menengah | Agresif |
 |---|---|---|---|
@@ -304,7 +304,7 @@ Paper Trading sekarang menjalankan **tiga akun Rp1.000.000** yang membaca signal
 | Trade (per bulan) | 217 (10) | 447 (21) | 963 (46) |
 | TARGET / CUTLOSS | 81% / 10% | 51% / 30% | 48% / 31% |
 | Expectancy per trade (net) | +0,28% | +0,43% | +0,28% |
-| Return Rp1 jt | +6,8% | +32,8% | +62,5% |
+| Return (Rp10 jt) | +6,8% → Rp10,68 jt | +32,8% → Rp13,28 jt | +62,5% → Rp16,25 jt |
 | Max drawdown | −2,1% | −7,3% | −16,2% |
 | Capital utilization rata-rata / maks | 0,5% / 51% | 2,8% / 59% | 8,0% / 81% |
 

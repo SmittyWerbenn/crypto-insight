@@ -31,7 +31,7 @@ Semua estimasi berasal dari data dan simulasi historis — bukan jaminan.
 
 ## Paper Trading V2
 
-Menu **Paper Trading V2** (`/paper`, menggantikan Skenario Otomatis) menjalankan portofolio simulasi dengan modal virtual **Rp1.000.000**. Fee per sisi (default 0,1%), compounding (default ON), dan top-up saldo bisa diatur dari halaman.
+Menu **Paper Trading V2** (`/paper`, menggantikan Skenario Otomatis) menjalankan portofolio simulasi dengan tiga akun virtual (Aman, Menengah, Agresif) masing-masing **Rp10.000.000**. Fee per sisi (default 0,1%), compounding (default ON), dan top-up saldo bisa diatur dari halaman.
 
 - **Entry:** breakout high 20 jam dengan volume ≥ 3×, koin ber-regime BULL, hanya jika BTC naik dalam 30 hari.
 - **Exit:** TP 0,75 ATR, SL 2,5 ATR, timeout 8 jam.
