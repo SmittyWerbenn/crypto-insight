@@ -197,11 +197,17 @@ function Live({ profile, setProfile }: { profile: ProfileId; setProfile: (p: Pro
   const st = s.stats;
   const nextScan = new Date(Math.floor(Date.now() / 3_600_000) * 3_600_000 + 3_600_000 + 45_000);
   const meta = PROFILES.find((p) => p.id === profile)!;
+  const legacyBackend = !(s as { profile?: string }).profile;
   return (
     <div className="space-y-4">
-      <CompareCard />
+      {legacyBackend && (
+        <Notice tone="warn" title="Backend belum versi 3 profil">
+          Server masih menjalankan Paper Trading V2 satu akun. Data di bawah adalah akun lama; perbandingan Aman / Menengah / Agresif muncul setelah backend di-deploy ulang.
+        </Notice>
+      )}
+      {!legacyBackend && <CompareCard />}
       <div className="flex flex-wrap items-center gap-3">
-        <Segmented value={profile} onChange={setProfile} options={PROFILES.map((p) => ({ value: p.id, label: p.label }))} />
+        <Segmented value={profile} onChange={setProfile} className={legacyBackend ? 'pointer-events-none opacity-50' : undefined} options={PROFILES.map((p) => ({ value: p.id, label: p.label }))} />
         <span className="text-xs text-ink-3">{meta.blurb}</span>
       </div>
       <Card>
@@ -286,7 +292,7 @@ function Live({ profile, setProfile }: { profile: ProfileId; setProfile: (p: Pro
         </CardBody>
       </Card>
 
-      <SignalLog />
+      {!legacyBackend && <SignalLog />}
 
       <Card>
         <CardHeader title="Riwayat transaksi" subtitle="Entry → alokasi → TP/SL → exit → P&L → cash → equity" />
@@ -415,7 +421,9 @@ function AssetTable({ rows }: { rows: Asset[] }) {
 }
 
 function ConfigCard({ cfg, profile }: { cfg: Summary['config']; profile: ProfileId }) {
-  const s = cfg.strategy as unknown as { minVolRatio: number; regimes: string[]; btcRet30dMin: number | null; requireEmaUp: boolean; minBreakoutAtr: number; minAtrPct: number; maxAtrPct: number; tpAtr: number; slAtr: number; maxHoldH: number };
+  // Backends before the profiles (2026-10-03) send { coinRegime, breakoutLookback } and no ATR range
+  const raw = cfg.strategy as unknown as { minVolRatio: number; regimes?: string[]; coinRegime?: string; btcRet30dMin: number | null; requireEmaUp?: boolean; minBreakoutAtr?: number; minAtrPct?: number; maxAtrPct?: number; tpAtr: number; slAtr: number; maxHoldH: number };
+  const s = { ...raw, regimes: raw.regimes ?? [raw.coinRegime ?? 'BULL'], minAtrPct: raw.minAtrPct ?? 0, maxAtrPct: raw.maxAtrPct ?? 100 };
   const m = cfg.money as Record<string, number>;
   const set = cfg.settings;
   const rows: [string, string][] = [

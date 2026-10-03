@@ -208,6 +208,7 @@ export function ProfilesResearch() {
   const q = useQuery({ queryKey: ['paper', 'research', 'profiles'], queryFn: () => api<ProfilesResearchData>('/api/paper/research/profiles'), staleTime: Infinity });
   const [fee, setFee] = useState<'fee' | 'noFee'>('fee');
   const r = q.data;
+  if (q.isError) return <Notice tone="warn" title="Riset 3 profil belum tersedia">Backend belum di-deploy ulang ke versi 3 profil ({(q.error as Error).message}).</Notice>;
   if (!r) return <p className="text-sm text-ink-3">Memuat…</p>;
   const P = PROFILES.map((p) => p.id);
   const days = [...new Set(P.flatMap((p) => r.equity[p].map((x) => x.date)))].sort();
