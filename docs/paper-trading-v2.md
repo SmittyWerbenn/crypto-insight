@@ -260,6 +260,78 @@ Backtest V2 dengan biaya nyata (21 bulan, `scripts/paper-research/fees.ts`):
 
 Dengan fee 0,1% per sisi, strategi ini hampir impas. Di periode validasi hasilnya negatif (PF 0,91). Compounding hampir tidak berpengaruh karena rata-rata hanya sekitar 3% modal yang terpakai.
 
+## 3 profil: Aman / Menengah / Agresif (3 Oktober 2026)
+
+Paper Trading sekarang menjalankan **tiga akun Rp1.000.000** yang membaca signal yang sama. Ketiga akun dibedakan oleh **selektivitas**, bukan hanya ukuran posisi.
+
+- **Signal** adalah setiap close 1h di atas high 20 jam dengan volume ≥ 1,5x.
+  - Jika tidak ada signal, artinya pasar memang tidak memberi peluang.
+  - Jika signal ada tapi ditolak, alasannya dicatat per profil di tabel `paper_signals`.
+- **Aturan bertingkat:** setiap signal yang diterima Aman pasti diterima Menengah dan Agresif.
+- **Asal threshold:** dicari di data training 2025, dicek di validasi 2026-H1, diuji di 2026-Q3. Fee 0,1%/sisi, tanpa compounding.
+- **Kode riset:** `backend/scripts/paper-research/profiles.ts`.
+
+### Threshold (dari data)
+
+| Aturan | Aman | Menengah | Agresif |
+|---|---|---|---|
+| Volume minimum | ≥ 4x | ≥ 3x | ≥ 1,5x |
+| Breakout minimum | ≥ 0,25 ATR | > high 20 jam | > high 20 jam |
+| Regime koin / BTC 30 hari / EMA20>EMA50 | BULL / > 0% / wajib | sama | sama |
+| ATR 1h (risk) | 1–3% | 1–4% | 1–6% |
+| Skor engine minimum | tidak dipakai | tidak dipakai | tidak dipakai |
+| TP / SL / timeout | 0,75 / 2,5 ATR / 8 jam | 2 / 2 ATR / 12 jam | 2 / 2 ATR / 12 jam |
+| Risk per trade / alokasi per koin | 0,5% / 20% | 0,75% / 20% | 1,25% / 25% |
+| Posisi / reserve / exposure / klaster | 3 / 40% / 60% / 40% | 4 / 30% / 70% / 50% | 6 / 10% / 90% / 60% |
+
+**Kenapa beberapa pelonggaran tidak dipakai untuk Agresif.** Ini adalah irisan yang ditolak semua profil. Angkanya expectancy per trade setelah fee:
+
+| Irisan yang ditolak | Training | Validasi | Test | Keputusan |
+|---|---|---|---|---|
+| BTC Neutral (−5…0%) | −0,58% | +0,54% | −0,60% | Ditolak: rugi di 2 dari 3 periode |
+| Koin SIDEWAYS | −0,29% | −0,37% | +0,20% | Ditolak |
+| ATR < 1% | −0,04% | −0,21% | +0,10% | Ditolak: target tidak menutup fee |
+
+- **Skor engine** juga tidak dipakai. Skor 90–100 justru negatif di training dan test, dan tidak ada hubungan yang konsisten antara skor dan hasil.
+
+### Hasil portofolio 21 bulan (fee 0,1%/sisi, tanpa compounding)
+
+| | Aman | Menengah | Agresif |
+|---|---|---|---|
+| Signal tersedia | 9.232 | 9.232 | 9.232 |
+| Lolos filter | 232 (2,5%) | 580 (6,3%) | 1.994 (21,6%) |
+| Ditolak money management | 15 | 133 | 1.031 |
+| Trade (per bulan) | 217 (10) | 447 (21) | 963 (46) |
+| TARGET / CUTLOSS | 81% / 10% | 51% / 30% | 48% / 31% |
+| Expectancy per trade (net) | +0,28% | +0,43% | +0,28% |
+| Return Rp1 jt | +6,8% | +32,8% | +62,5% |
+| Max drawdown | −2,1% | −7,3% | −16,2% |
+| Capital utilization rata-rata / maks | 0,5% / 51% | 2,8% / 59% | 8,0% / 81% |
+
+- **Per periode:** return positif di training, validasi, dan test untuk ketiga profil.
+- **Pembanding:** V2 satu akun dengan fee yang sama hanya +3,3% (DD −10,1%).
+- **Sumber perbaikan:** filter ATR ≥ 1% dan EMA, plus exit 2/2 ATR untuk Menengah dan Agresif.
+
+### Trade-off selektivitas
+
+Expectancy per trade (net) dari irisan tambahan di setiap langkah pelonggaran:
+
+| Irisan | Training | Validasi | Test |
+|---|---|---|---|
+| Diterima Menengah, ditolak Aman | +0,13% | −0,17% | +0,69% |
+| Diterima Agresif, ditolak Menengah | +0,19% | +0,21% | +0,02% |
+
+**Aman** sangat konservatif:
+- Utilization 0,5%, sekitar 10 trade per bulan.
+- Penolakan terbanyak karena volume, BTC tidak Bull, dan regime koin.
+- Peluang yang hilang dari Aman rata-rata masih positif, tapi tidak stabil (negatif di validasi). Jadi Aman rela kehilangan return demi CUTLOSS ~10% dan DD ~2%.
+
+**Agresif** mengambil peluang tambahan dengan expectancy kecil tapi positif. Akibatnya:
+- Drawdown lebih besar (−16%).
+- Separuh signal yang lolos ditolak karena kapasitas modal: cash, exposure, atau koin yang sama masih terbuka.
+
+**Penghambat terbesar** untuk semua profil adalah filter makro BTC: 39% signal muncul saat BTC Neutral/Bear. Itu kondisi pasar, bukan filter yang terlalu ketat.
+
 ## Langkah berikutnya
 
 Sesuai brief poin 34:

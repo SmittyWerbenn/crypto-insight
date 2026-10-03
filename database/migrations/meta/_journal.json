@@ -43,6 +43,13 @@
       "when": 1790960695188,
       "tag": "0005_paper_fees_topup",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1791013887229,
+      "tag": "0006_paper_profiles",
+      "breakpoints": true
     }
   ]
 }

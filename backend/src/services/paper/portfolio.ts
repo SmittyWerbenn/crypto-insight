@@ -1,4 +1,4 @@
-import { clusterOf } from './strategy.js';
+import { clusterOf, type ProfileId, type RejectCode, type Rejection } from './strategy.js';
 
 /**
  * Paper Trading V2 money management. Pure bookkeeping, shared by the research backtest and the live engine.
@@ -47,6 +47,17 @@ export const MONEY_V2: MoneyConfig = {
 
 /** The research setting (results in docs/paper-trading-v2.md): no fees, fixed base. */
 export const MONEY_RESEARCH: MoneyConfig = { ...MONEY_V2, feeRate: 0, compounding: false };
+
+/**
+ * Money management per profile. Aman keeps most of the capital in cash and few positions;
+ * Agresif runs more positions with a bigger allocation and a small reserve. Every profile keeps the
+ * per-coin, total-exposure and correlated-cluster caps (see docs/paper-trading-v2.md, "3 profil").
+ */
+export const MONEY_PROFILES: Record<ProfileId, MoneyConfig> = {
+  AMAN: { ...MONEY_V2, riskPerTrade: 0.005, maxPerCoin: 0.2, maxPositions: 3, cashReserve: 0.4, maxExposure: 0.6, maxClusterExposure: 0.4 },
+  MENENGAH: { ...MONEY_V2, riskPerTrade: 0.0075, maxPerCoin: 0.2, maxPositions: 4, cashReserve: 0.3, maxExposure: 0.7, maxClusterExposure: 0.5 },
+  AGRESIF: { ...MONEY_V2, riskPerTrade: 0.0125, maxPerCoin: 0.25, maxPositions: 6, cashReserve: 0.1, maxExposure: 0.9, maxClusterExposure: 0.6 },
+};
 
 export interface Layer {
   time: number;
@@ -142,6 +153,8 @@ export class PaperPortfolio {
   constructor(
     readonly cfg: MoneyConfig = MONEY_V2,
     state?: PortfolioState,
+    /** Prefix for position ids, so several accounts can share one table. */
+    readonly idPrefix = 'P',
   ) {
     this.state = state ?? { cash: cfg.baseCapital, realizedPnl: 0, highWaterMark: cfg.baseCapital, maxDrawdownPct: 0, positions: [], seq: 0, deposits: 0, feesPaid: 0 };
   }
@@ -175,34 +188,35 @@ export class PaperPortfolio {
   }
 
   /** Null when a new position of `amount` (first layer) is allowed, otherwise the skip reason. */
-  canOpen(symbol: string, amount: number): string | null {
+  canOpen(symbol: string, amount: number): Rejection | null {
     const base = this.sizingBase;
     const st = this.state;
-    if (st.positions.some((p) => p.symbol === symbol)) return 'Koin sudah punya posisi terbuka (1 posisi per koin)';
-    if (st.positions.length >= this.cfg.maxPositions) return `Maks. ${this.cfg.maxPositions} posisi bersamaan tercapai`;
+    if (st.positions.some((p) => p.symbol === symbol)) return { code: 'HAS_POSITION', detail: 'Koin sudah punya posisi terbuka (1 posisi per koin)' };
+    if (st.positions.length >= this.cfg.maxPositions) return { code: 'MAX_POSITIONS', detail: `Maks. ${this.cfg.maxPositions} posisi bersamaan tercapai` };
     return this.capCheck(symbol, amount, base);
   }
 
-  private capCheck(symbol: string, amount: number, base: number): string | null {
+  private capCheck(symbol: string, amount: number, base: number): Rejection | null {
     const st = this.state;
-    if (amount <= 0) return 'Ukuran posisi nol';
-    if (st.cash - amount * (1 + this.cfg.feeRate) < base * this.cfg.cashReserve - 1e-6) return 'Cash tidak cukup (cadangan cash dijaga)';
-    if (this.invested + amount > base * this.cfg.maxExposure + 1e-6) return `Eksposur total > ${this.cfg.maxExposure * 100}% modal`;
+    const no = (code: RejectCode, detail: string) => ({ code, detail });
+    if (amount <= 0) return no('CASH', 'Ukuran posisi nol');
+    if (st.cash - amount * (1 + this.cfg.feeRate) < base * this.cfg.cashReserve - 1e-6) return no('CASH', `Cash tidak cukup (cadangan cash ${this.cfg.cashReserve * 100}% dijaga)`);
+    if (this.invested + amount > base * this.cfg.maxExposure + 1e-6) return no('MAX_EXPOSURE', `Eksposur total > ${this.cfg.maxExposure * 100}% modal`);
     const cl = clusterOf(symbol);
     const clusterCost = st.positions.filter((p) => p.cluster === cl).reduce((a, p) => a + costOf(p), 0);
-    if (clusterCost + amount > base * this.cfg.maxClusterExposure + 1e-6) return `Eksposur klaster ${cl} > ${this.cfg.maxClusterExposure * 100}% modal`;
+    if (clusterCost + amount > base * this.cfg.maxClusterExposure + 1e-6) return no('CLUSTER', `Eksposur klaster ${cl} > ${this.cfg.maxClusterExposure * 100}% modal`);
     const coinCost = st.positions.filter((p) => p.symbol === symbol).reduce((a, p) => a + costOf(p), 0);
-    if (coinCost + amount > base * this.cfg.maxPerCoin + 1e-6) return `Alokasi koin > ${this.cfg.maxPerCoin * 100}% modal`;
+    if (coinCost + amount > base * this.cfg.maxPerCoin + 1e-6) return no('MAX_EXPOSURE', `Alokasi koin > ${this.cfg.maxPerCoin * 100}% modal`);
     return null;
   }
 
-  open(o: { symbol: string; time: number; price: number; tp: number; sl: number; slPct: number; atrPct: number; maxHoldH: number; meta?: Record<string, unknown> }): { position: Position | null; reason: string | null } {
+  open(o: { symbol: string; time: number; price: number; tp: number; sl: number; slPct: number; atrPct: number; maxHoldH: number; meta?: Record<string, unknown> }): { position: Position | null; reason: string | null; code: RejectCode | null } {
     const planned = this.plannedSize(o.slPct);
     const first = planned * this.cfg.layers[0];
-    const reason = this.canOpen(o.symbol, first);
-    if (reason) return { position: null, reason };
+    const no = this.canOpen(o.symbol, first);
+    if (no) return { position: null, reason: no.detail, code: no.code };
     const p: Position = {
-      id: `P${++this.state.seq}`,
+      id: `${this.idPrefix}${++this.state.seq}`,
       symbol: o.symbol,
       cluster: clusterOf(o.symbol),
       openedAt: o.time,
@@ -220,7 +234,7 @@ export class PaperPortfolio {
     this.state.feesPaid += first * this.cfg.feeRate;
     this.state.positions.push(p);
     this.log(o.time, 'BUY', o.symbol, first);
-    return { position: p, reason: null };
+    return { position: p, reason: null, code: null };
   }
 
   /** Next entry layer. Only allowed while in profit (price ≥ average entry): adding to strength, never averaging down. */
@@ -230,8 +244,8 @@ export class PaperPortfolio {
     const avg = costOf(p) / qtyOf(p);
     if (price < avg) return 'Harga di bawah rata-rata entry — tidak averaging down';
     const amount = p.plannedCost * this.cfg.layers[k];
-    const reason = this.capCheck(p.symbol, amount, this.sizingBase);
-    if (reason) return reason;
+    const no = this.capCheck(p.symbol, amount, this.sizingBase);
+    if (no) return no.detail;
     p.layers.push({ time, price, qty: amount / price, cost: amount, fee: amount * this.cfg.feeRate });
     this.state.cash -= amount * (1 + this.cfg.feeRate);
     this.state.feesPaid += amount * this.cfg.feeRate;

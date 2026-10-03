@@ -7,6 +7,8 @@ import { Badge, Button, Card, CardBody, CardHeader, EmptyState, Input, Notice, P
 import { Table, TBody, TD, TH, THead, TR } from '@/components/ui/table';
 import { baseAsset, fmtDate, fmtPriceSym } from '@/utils/format';
 import { cn } from '@/utils/cn';
+import { AXIS, fmtRp, pct, PROFILE_LABEL, PROFILES, tone, type ProfileId } from './paperFormat';
+import { CompareCard, ProfilesResearch, scanSummaryFor, SignalLog } from './PaperProfiles';
 
 /* ---------- types ---------- */
 interface Stats {
@@ -128,21 +130,13 @@ interface Scan {
   btc: { ret30d?: number; ret24h?: number; regime?: string } | null;
   scanned: number;
   signals: number;
-  entries: { symbol: string; price: number; amount: number; allocationPct: number }[];
-  skipped: { symbol: string; reason: string }[];
+  entries: { profile?: ProfileId; symbol: string; price: number; amount: number; allocationPct: number }[];
+  /** Before the profiles: a plain list; since: { profiles: per-profile notes, skipped: [...] }. */
+  skipped: { profile?: ProfileId; symbol: string; reason: string }[] | { profiles: Record<ProfileId, { note: string }>; skipped: { profile: ProfileId; symbol: string; reason: string }[] };
   note: string | null;
 }
 
-/* ---------- formatting (Paper Trading is booked in Rupiah, independent of the display currency) ---------- */
-const fmtRp = (v: number | null | undefined, signed = false) => {
-  if (v === null || v === undefined || !Number.isFinite(v)) return '–';
-  const s = v < 0 ? '-' : signed && v > 0 ? '+' : '';
-  return `${s}Rp ${Math.abs(v).toLocaleString('id-ID', { maximumFractionDigits: 0 })}`;
-};
-const pct = (v: number | null | undefined, d = 1, signed = false) => (v === null || v === undefined || !Number.isFinite(v) ? '–' : `${signed && v > 0 ? '+' : ''}${v.toFixed(d)}%`);
-const tone = (v: number) => (v > 0 ? 'text-up' : v < 0 ? 'text-down' : 'text-ink-2');
 const REASON: Record<string, { label: string; tone: 'up' | 'down' | 'neutral' }> = { TARGET: { label: 'Target', tone: 'up' }, CUTLOSS: { label: 'Cut loss', tone: 'down' }, TIMEOUT: { label: 'Waktu habis', tone: 'neutral' } };
-const AXIS = { fontSize: 11, fill: '#8491a5' };
 const tickDate = (t: number) => new Intl.DateTimeFormat('id-ID', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short' }).format(t);
 
 function ChartTip({ active, payload, render }: { active?: boolean; payload?: { payload: Record<string, number> }[]; render: (p: Record<string, number>) => React.ReactNode }) {
@@ -187,13 +181,14 @@ function EquityCurve({ points, base, marks }: { points: { time: number; equity: 
 }
 
 /* ---------- live tab ---------- */
-function Live() {
+function Live({ profile, setProfile }: { profile: ProfileId; setProfile: (p: ProfileId) => void }) {
   const qc = useQueryClient();
-  const summary = useQuery({ queryKey: ['paper'], queryFn: () => api<Summary>('/api/paper'), refetchInterval: 60_000 });
-  const equity = useQuery({ queryKey: ['paper', 'equity'], queryFn: () => api<LedgerPoint[]>('/api/paper/equity'), refetchInterval: 300_000 });
-  const trades = useQuery({ queryKey: ['paper', 'trades'], queryFn: () => api<Trade[]>('/api/paper/trades?limit=200'), refetchInterval: 120_000 });
-  const daily = useQuery({ queryKey: ['paper', 'daily'], queryFn: () => api<Daily[]>('/api/paper/daily'), refetchInterval: 300_000 });
-  const assets = useQuery({ queryKey: ['paper', 'assets'], queryFn: () => api<Asset[]>('/api/paper/assets'), refetchInterval: 300_000 });
+  const pq = `profile=${profile}`;
+  const summary = useQuery({ queryKey: ['paper', profile], queryFn: () => api<Summary>(`/api/paper?${pq}`), refetchInterval: 60_000 });
+  const equity = useQuery({ queryKey: ['paper', 'equity', profile], queryFn: () => api<LedgerPoint[]>(`/api/paper/equity?${pq}`), refetchInterval: 300_000 });
+  const trades = useQuery({ queryKey: ['paper', 'trades', profile], queryFn: () => api<Trade[]>(`/api/paper/trades?limit=200&${pq}`), refetchInterval: 120_000 });
+  const daily = useQuery({ queryKey: ['paper', 'daily', profile], queryFn: () => api<Daily[]>(`/api/paper/daily?${pq}`), refetchInterval: 300_000 });
+  const assets = useQuery({ queryKey: ['paper', 'assets', profile], queryFn: () => api<Asset[]>(`/api/paper/assets?${pq}`), refetchInterval: 300_000 });
   const scans = useQuery({ queryKey: ['paper', 'scans'], queryFn: () => api<Scan[]>('/api/paper/scans?limit=24'), refetchInterval: 120_000 });
   const scan = useMutation({ mutationFn: () => api('/api/paper/scan', { method: 'POST' }), onSuccess: () => qc.invalidateQueries({ queryKey: ['paper'] }) });
   const s = summary.data;
@@ -201,11 +196,17 @@ function Live() {
   if (!s) return <p className="text-sm text-ink-3">Memuat…</p>;
   const st = s.stats;
   const nextScan = new Date(Math.floor(Date.now() / 3_600_000) * 3_600_000 + 3_600_000 + 45_000);
+  const meta = PROFILES.find((p) => p.id === profile)!;
   return (
     <div className="space-y-4">
+      <CompareCard />
+      <div className="flex flex-wrap items-center gap-3">
+        <Segmented value={profile} onChange={setProfile} options={PROFILES.map((p) => ({ value: p.id, label: p.label }))} />
+        <span className="text-xs text-ink-3">{meta.blurb}</span>
+      </div>
       <Card>
         <CardHeader
-          title="PAPER TRADING V2"
+          title={`AKUN ${meta.label.toUpperCase()}`}
           subtitle={`Mulai ${fmtDate(s.startedAt)} · scan terakhir ${s.lastScanAt ? fmtDate(s.lastScanAt) : '–'} · scan berikutnya ${fmtDate(nextScan)}`}
           action={<Button size="sm" variant="outline" loading={scan.isPending} onClick={() => scan.mutate()}><Play className="h-3.5 w-3.5" /> Scan sekarang</Button>}
         />
@@ -225,7 +226,7 @@ function Live() {
         </CardBody>
       </Card>
 
-      <SettingsCard s={s} />
+      <SettingsCard s={s} profile={profile} />
 
       <Card>
         <CardHeader title="Equity curve & drawdown" subtitle="Setiap BUY/SELL dan titik mark-to-market per jam dari capital ledger" />
@@ -262,24 +263,30 @@ function Live() {
       </Card>
 
       <Card>
-        <CardHeader title="Log scan per jam" subtitle="Kenapa sistem membeli — atau menahan cash" />
+        <CardHeader title="Log scan per jam" subtitle={`Kenapa akun ${meta.label} membeli — atau menahan cash`} />
         <CardBody className="p-0">
           <Table>
-            <THead><TR><TH>Waktu</TH><TH>BTC 30h / 24j</TH><TH>Lolos</TH><TH>Dibeli</TH><TH>Catatan</TH></TR></THead>
+            <THead><TR><TH>Waktu</TH><TH>BTC 30h / 24j</TH><TH>Signal</TH><TH>Dibeli ({meta.label})</TH><TH>Catatan</TH></TR></THead>
             <TBody>
-              {(scans.data ?? []).map((x) => (
-                <TR key={x.id}>
-                  <TD className="num whitespace-nowrap">{fmtDate(x.time)}</TD>
-                  <TD className="num">{pct(x.btc?.ret30d, 1, true)} / {pct(x.btc?.ret24h, 1, true)}</TD>
-                  <TD className="num">{x.signals}/{x.scanned}</TD>
-                  <TD>{x.entries.length ? x.entries.map((e) => `${baseAsset(e.symbol)} ${fmtRp(e.amount)}`).join(', ') : '–'}</TD>
-                  <TD className="text-xs text-ink-3">{x.note ?? x.skipped.slice(0, 3).map((k) => `${baseAsset(k.symbol)}: ${k.reason}`).join(' · ')}</TD>
-                </TR>
-              ))}
+              {(scans.data ?? []).map((x) => {
+                const mine = x.entries.filter((e) => (e.profile ?? null) === profile);
+                const list = Array.isArray(x.skipped) ? x.skipped : x.skipped.skipped.filter((k) => k.profile === profile);
+                return (
+                  <TR key={x.id}>
+                    <TD className="num whitespace-nowrap">{fmtDate(x.time)}</TD>
+                    <TD className="num">{pct(x.btc?.ret30d, 1, true)} / {pct(x.btc?.ret24h, 1, true)}</TD>
+                    <TD className="num">{x.signals}/{x.scanned}</TD>
+                    <TD>{mine.length ? mine.map((e) => `${baseAsset(e.symbol)} ${fmtRp(e.amount)}`).join(', ') : '–'}</TD>
+                    <TD className="text-xs text-ink-3">{[scanSummaryFor(profile, x.skipped) ?? x.note, ...list.slice(0, 3).map((k) => `${baseAsset(k.symbol)}: ${k.reason}`)].filter(Boolean).join(' · ')}</TD>
+                  </TR>
+                );
+              })}
             </TBody>
           </Table>
         </CardBody>
       </Card>
+
+      <SignalLog />
 
       <Card>
         <CardHeader title="Riwayat transaksi" subtitle="Entry → alokasi → TP/SL → exit → P&L → cash → equity" />
@@ -341,22 +348,22 @@ function Live() {
           </CardBody>
         </Card>
       </div>
-      <ConfigCard cfg={s.config} />
+      <ConfigCard cfg={s.config} profile={profile} />
     </div>
   );
 }
 
-function SettingsCard({ s }: { s: Summary }) {
+function SettingsCard({ s, profile }: { s: Summary; profile: ProfileId }) {
   const qc = useQueryClient();
   const [fee, setFee] = useState(String(+(s.config.settings.feeRate * 100).toFixed(3)));
   const [topUp, setTopUp] = useState('500000');
   const refresh = () => qc.invalidateQueries({ queryKey: ['paper'] });
   const save = useMutation({ mutationFn: (body: { feeRatePct?: number; compounding?: boolean }) => api('/api/paper/settings', { method: 'PUT', json: body }), onSuccess: refresh });
-  const add = useMutation({ mutationFn: (amount: number) => api('/api/paper/topup', { method: 'POST', json: { amount } }), onSuccess: refresh });
+  const add = useMutation({ mutationFn: (amount: number) => api('/api/paper/topup', { method: 'POST', json: { amount, profile } }), onSuccess: refresh });
   const comp = s.config.settings.compounding;
   return (
     <Card>
-      <CardHeader title="Biaya, compounding & top-up" subtitle={`Fee terbayar ${fmtRp(s.feesPaid)} · perubahan berlaku untuk trade berikutnya`} />
+      <CardHeader title="Biaya, compounding & top-up" subtitle={`Fee terbayar akun ${PROFILE_LABEL[profile]} ${fmtRp(s.feesPaid)} · fee & compounding berlaku untuk ketiga profil (agar tetap sebanding), top-up hanya untuk akun ini`} />
       <CardBody className="grid gap-4 md:grid-cols-3">
         <div className="space-y-1.5">
           <div className="text-xs font-semibold text-ink-2">Fee per sisi (%)</div>
@@ -372,7 +379,7 @@ function SettingsCard({ s }: { s: Summary }) {
           <p className="text-[11px] text-ink-3">{comp ? `Ukuran posisi ikut equity (basis sekarang ${fmtRp(s.sizingBase)}).` : `Ukuran posisi dari modal disetor ${fmtRp(s.paidInCapital)}.`}</p>
         </div>
         <div className="space-y-1.5">
-          <div className="text-xs font-semibold text-ink-2">Top-up saldo virtual (Rp)</div>
+          <div className="text-xs font-semibold text-ink-2">Top-up saldo virtual akun {PROFILE_LABEL[profile]} (Rp)</div>
           <div className="flex gap-2">
             <Input type="number" step="50000" min="10000" value={topUp} onChange={(e) => setTopUp(e.target.value)} className="w-36" />
             <Button size="sm" variant="outline" loading={add.isPending} onClick={() => add.mutate(Number(topUp))}>Tambah</Button>
@@ -407,17 +414,19 @@ function AssetTable({ rows }: { rows: Asset[] }) {
   );
 }
 
-function ConfigCard({ cfg }: { cfg: Summary['config'] }) {
-  const s = cfg.strategy as Record<string, number | string>;
+function ConfigCard({ cfg, profile }: { cfg: Summary['config']; profile: ProfileId }) {
+  const s = cfg.strategy as unknown as { minVolRatio: number; regimes: string[]; btcRet30dMin: number | null; requireEmaUp: boolean; minBreakoutAtr: number; minAtrPct: number; maxAtrPct: number; tpAtr: number; slAtr: number; maxHoldH: number };
   const m = cfg.money as Record<string, number>;
   const set = cfg.settings;
   const rows: [string, string][] = [
     ['Universe', '21 koin likuid Binance USDT (BTC, ETH, BNB, SOL, …)'],
-    ['Entry', `Close 1h > high ${s.breakoutLookback} jam, volume ≥ ${s.minVolRatio}x rata-rata 20 jam, regime koin ${s.coinRegime}`],
-    ['Filter BTC', `Return BTC 30 hari > ${s.btcRet30dMin}% (jika tidak → HOLD CASH)`],
+    ['Entry', `Close 1h > high 20 jam${s.minBreakoutAtr ? ` + ${s.minBreakoutAtr} ATR` : ''}, volume ≥ ${s.minVolRatio}x rata-rata 20 jam, regime koin ${s.regimes.join('/')}${s.requireEmaUp ? ', EMA20 > EMA50' : ''}`],
+    ['Filter BTC', s.btcRet30dMin === null ? 'Tidak ada' : `Return BTC 30 hari > ${s.btcRet30dMin}% (jika tidak → HOLD CASH)`],
+    ['ATR (risk)', `${s.minAtrPct}% – ${s.maxAtrPct}% per jam; di bawah min target tidak menutup fee, di atas maks stop terlalu lebar`],
     ['Take profit', `${s.tpAtr} × ATR(1h) dari harga fill`],
     ['Cut loss', `${s.slAtr} × ATR(1h) dari harga fill`],
     ['Timeout', `${s.maxHoldH} jam (maks. 24 jam)`],
+    ['Skor engine', 'Tidak dipakai — di backtest tidak berhubungan dengan hasil breakout'],
     ['Risk / trade', `${(m.riskPerTrade * 100).toFixed(1)}% basis ukuran posisi jika kena cut loss`],
     ['Ukuran posisi', `Risk ÷ jarak SL, maks ${(m.maxPerCoin * 100).toFixed(0)}% basis per koin`],
     ['Posisi bersamaan', `Maks ${m.maxPositions}, 1 posisi per koin (tanpa re-entry selama masih terbuka)`],
@@ -428,7 +437,7 @@ function ConfigCard({ cfg }: { cfg: Summary['config'] }) {
   ];
   return (
     <Card>
-      <CardHeader title="Konfigurasi V2" subtitle="Hasil riset — lihat tab Riset untuk bukti setiap angka" />
+      <CardHeader title={`Konfigurasi profil ${PROFILE_LABEL[profile]}`} subtitle="Hasil riset — lihat tab Riset untuk bukti setiap angka" />
       <CardBody className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
         {rows.map(([k, v]) => (
           <div key={k} className="flex gap-3 border-b border-border/60 py-1.5"><span className="w-36 shrink-0 text-ink-3">{k}</span><span>{v}</span></div>
@@ -484,6 +493,8 @@ function ResearchTab() {
   const sls = [...new Set(grid.map((g) => g.lab.split(' ')[1]))];
   return (
     <div className="space-y-4">
+      <ProfilesResearch />
+      <h2 className="pt-4 text-sm font-semibold uppercase tracking-wide text-ink-3">Riset V2 awal (satu akun, 2 Oktober 2026)</h2>
       <Notice tone="info" title="Ringkasan riset">
         Mesin skor lama (BUY/STRONG BUY) tidak punya edge intraday: hasilnya sama dengan entry acak. Yang konsisten di training, validasi, dan test adalah
         <b> breakout 20 jam dengan volume ≥ 3x di koin ber-regime BULL, hanya saat BTC naik dalam 30 hari</b>, dengan target kecil (0,75 ATR) dan cut loss lebar (2,5 ATR).
@@ -702,15 +713,16 @@ function BucketCard({ title, rows }: { title: string; rows: Bucket[] }) {
 
 export default function PaperTrading() {
   const [tab, setTab] = useState<'live' | 'research'>('live');
+  const [profile, setProfile] = useState<ProfileId>('MENENGAH');
   return (
     <div className="space-y-4">
       <PageHeader
         title="Paper Trading V2"
-        description="Simulasi modal virtual Rp1.000.000: breakout volume intraday, holding maks. 8 jam, fee & compounding bisa diatur. Bukan order nyata."
-        actions={<Segmented value={tab} onChange={setTab} options={[{ value: 'live', label: 'Live V2' }, { value: 'research', label: 'Riset & Backtest' }]} />}
+        description="Tiga akun virtual Rp1.000.000 (Aman, Menengah, Agresif) membaca signal breakout yang sama dengan tingkat selektivitas berbeda. Holding maks. 12 jam, fee & compounding bisa diatur. Bukan order nyata."
+        actions={<Segmented value={tab} onChange={setTab} options={[{ value: 'live', label: 'Live' }, { value: 'research', label: 'Riset & Backtest' }]} />}
       />
-      {tab === 'live' ? <Live /> : <ResearchTab />}
-      <p className="flex items-center gap-1.5 text-xs text-ink-3"><FlaskConical className="h-3.5 w-3.5" /> Hasil backtest bukan jaminan. Edge V2 tipis: backtest 21 bulan +33% tanpa fee, +11% dengan fee 0,075%/sisi, +3% dengan fee 0,1%/sisi (max DD −10%).</p>
+      {tab === 'live' ? <Live profile={profile} setProfile={setProfile} /> : <ResearchTab />}
+      <p className="flex items-center gap-1.5 text-xs text-ink-3"><FlaskConical className="h-3.5 w-3.5" /> Hasil backtest bukan jaminan. Backtest 21 bulan dengan fee 0,1%/sisi tanpa compounding: Aman +6,8% (DD −2,1%), Menengah +32,8% (DD −7,3%), Agresif +62,6% (DD −16,2%).</p>
     </div>
   );
 }

@@ -341,6 +341,8 @@ export const sentiment = pgTable(
  */
 export const paperState = pgTable('paper_state', {
   id: integer('id').primaryKey(),
+  /** AMAN | MENENGAH | AGRESIF (one account each); 'V2' = the single-account run before the profiles. */
+  profile: varchar('profile', { length: 16 }).notNull().default('V2').unique(),
   startedAt: ts('started_at').notNull().defaultNow(),
   config: jsonb('config').notNull(),
   cash: doublePrecision('cash').notNull(),
@@ -357,6 +359,7 @@ export const paperState = pgTable('paper_state', {
 
 export const paperPositions = pgTable('paper_positions', {
   id: varchar('id', { length: 16 }).primaryKey(),
+  profile: varchar('profile', { length: 16 }).notNull().default('V2'),
   symbol: varchar('symbol', { length: 32 }).notNull(),
   cluster: varchar('cluster', { length: 24 }).notNull(),
   openedAt: ts('opened_at').notNull(),
@@ -377,6 +380,7 @@ export const paperTrades = pgTable(
   'paper_trades',
   {
     id: varchar('id', { length: 16 }).primaryKey(),
+    profile: varchar('profile', { length: 16 }).notNull().default('V2'),
     symbol: varchar('symbol', { length: 32 }).notNull(),
     cluster: varchar('cluster', { length: 24 }).notNull(),
     openedAt: ts('opened_at').notNull(),
@@ -400,7 +404,7 @@ export const paperTrades = pgTable(
     cashAfter: doublePrecision('cash_after').notNull(),
     equityAfter: doublePrecision('equity_after').notNull(),
   },
-  (t) => [index('paper_trades_closed_idx').on(t.closedAt)],
+  (t) => [index('paper_trades_closed_idx').on(t.closedAt), index('paper_trades_profile_idx').on(t.profile)],
 );
 
 /** Capital ledger: every BUY/SELL plus an hourly mark-to-market point (the equity curve). */
@@ -408,6 +412,7 @@ export const paperLedger = pgTable(
   'paper_ledger',
   {
     id: serial('id').primaryKey(),
+    profile: varchar('profile', { length: 16 }).notNull().default('V2'),
     time: ts('time').notNull(),
     event: varchar('event', { length: 8 }).notNull(), // START | BUY | ADD | SELL | MARK | TOPUP
     symbol: varchar('symbol', { length: 32 }),
@@ -421,7 +426,7 @@ export const paperLedger = pgTable(
     highWaterMark: doublePrecision('high_water_mark').notNull(),
     drawdownPct: doublePrecision('drawdown_pct').notNull(),
   },
-  (t) => [index('paper_ledger_time_idx').on(t.time)],
+  (t) => [index('paper_ledger_time_idx').on(t.time), index('paper_ledger_profile_idx').on(t.profile, t.time)],
 );
 
 /** One row per hourly scan: market filter, how many coins passed, what was bought or skipped and why. */
@@ -438,4 +443,25 @@ export const paperScans = pgTable(
     note: text('note'),
   },
   (t) => [index('paper_scans_time_idx').on(t.time)],
+);
+
+/**
+ * Every breakout signal (1h close above the 20h high on ≥ 1.5x volume) and what each profile did with it:
+ * ACCEPT (bought) or REJECT with the reasons — rule filters (stage RULE) or money caps (stage MONEY).
+ */
+export const paperSignals = pgTable(
+  'paper_signals',
+  {
+    id: serial('id').primaryKey(),
+    time: ts('time').notNull(),
+    symbol: varchar('symbol', { length: 32 }).notNull(),
+    profile: varchar('profile', { length: 16 }).notNull(),
+    decision: varchar('decision', { length: 8 }).notNull(), // ACCEPT | REJECT
+    stage: varchar('stage', { length: 8 }).notNull(), // RULE | MONEY | ENTRY
+    /** [{ code, detail }] */
+    reasons: jsonb('reasons').notNull(),
+    /** Signal snapshot: score, volume, ATR, regime, BTC state, breakout, quality grade. */
+    features: jsonb('features').notNull(),
+  },
+  (t) => [index('paper_signals_time_idx').on(t.time), index('paper_signals_profile_idx').on(t.profile, t.time)],
 );

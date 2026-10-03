@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { MONEY_RESEARCH, PaperPortfolio } from './portfolio.js';
-import { entryCheck, levelsFor, STRATEGY_V2 } from './strategy.js';
+import { entryCheck, isSignal, levelsFor, priceMoved, PROFILE_IDS, PROFILES, rejectReasons, STRATEGY_V2 } from './strategy.js';
 import type { BtcContext, CoinFeatures } from './features.js';
 
 const money = { ...MONEY_RESEARCH };
@@ -37,8 +37,10 @@ describe('Paper Trading V2 portfolio', () => {
     const pf = new PaperPortfolio(money);
     expect(open(pf, 'SOLUSDT').reason).toBeNull();
     expect(open(pf, 'SOLUSDT').reason).toMatch(/1 posisi per koin/);
+    expect(open(pf, 'SOLUSDT').code).toBe('HAS_POSITION');
     expect(open(pf, 'AVAXUSDT').reason).toBeNull(); // ALT_BETA now 40%
     expect(open(pf, 'NEARUSDT').reason).toMatch(/klaster ALT_BETA/); // would be 60% > 50%
+    expect(open(pf, 'NEARUSDT').code).toBe('CLUSTER');
     expect(open(pf, 'ZECUSDT').reason).toBeNull(); // other cluster; invested 60%, cash 400k
     expect(open(pf, 'BTCUSDT').reason).toMatch(/Cash tidak cukup|Eksposur total/); // reserve 30% / exposure 70%
   });
@@ -49,6 +51,7 @@ describe('Paper Trading V2 portfolio', () => {
     pf.close(p, 1, 0.5, 'CUTLOSS'); // lose almost everything in that position
     pf.state.cash = 350_000;
     expect(open(pf, 'ETHUSDT').reason).toMatch(/Cash tidak cukup/);
+    expect(open(pf, 'ETHUSDT').code).toBe('CASH');
   });
 
   it('never averages down: extra layers only above the average entry', () => {
@@ -102,14 +105,51 @@ describe('Paper Trading V2 portfolio', () => {
 });
 
 describe('Paper Trading V2 strategy', () => {
-  const f = { regime: 'BULL', hh20Atr: 0.4, volRatio: 3.5, atrPct: 1 } as CoinFeatures;
+  const f = { regime: 'BULL', hh20Atr: 0.4, volRatio: 3.5, atrPct: 1, emaUp: true } as CoinFeatures;
   const btc = { ret30d: 4 } as BtcContext;
-  it('requires BTC 30d uptrend, coin BULL regime, a 20h breakout and ≥3x volume', () => {
-    expect(entryCheck(f, btc)).toBeNull();
-    expect(entryCheck(f, { ...btc, ret30d: -2 })).toMatch(/tahan cash/);
-    expect(entryCheck({ ...f, regime: 'SIDEWAYS' }, btc)).toMatch(/Regime/);
-    expect(entryCheck({ ...f, hh20Atr: -0.1 }, btc)).toMatch(/breakout/);
-    expect(entryCheck({ ...f, volRatio: 2.9 }, btc)).toMatch(/Volume/);
+  it('V2 baseline requires BTC 30d uptrend, coin BULL regime, a 20h breakout and ≥3x volume', () => {
+    expect(entryCheck(f, btc, STRATEGY_V2)).toBeNull();
+    expect(entryCheck(f, { ...btc, ret30d: -2 }, STRATEGY_V2)).toMatch(/BTC 30 hari/);
+    expect(entryCheck({ ...f, regime: 'SIDEWAYS' }, btc, STRATEGY_V2)).toMatch(/Regime/);
+    expect(entryCheck({ ...f, hh20Atr: -0.1 }, btc, STRATEGY_V2)).toMatch(/breakout/);
+    expect(entryCheck({ ...f, volRatio: 2.9 }, btc, STRATEGY_V2)).toMatch(/Volume/);
+  });
+
+  it('a signal is a 20h breakout on ≥1.5x volume; no breakout = no signal (not a rejection)', () => {
+    expect(isSignal(f)).toBe(true);
+    expect(isSignal({ ...f, hh20Atr: 0 })).toBe(false);
+    expect(isSignal({ ...f, volRatio: 1.4 })).toBe(false);
+  });
+
+  it('profiles are nested: whatever Aman accepts, Menengah and Agresif accept too', () => {
+    const grid: CoinFeatures[] = [];
+    for (const volRatio of [1.5, 2, 3, 4, 6]) for (const hh20Atr of [0.1, 0.3, 1]) for (const atrPct of [0.8, 1.2, 3.5, 5]) for (const emaUp of [true, false]) grid.push({ ...f, volRatio, hh20Atr, atrPct, emaUp });
+    const ok = (p: (typeof PROFILE_IDS)[number], x: CoinFeatures) => rejectReasons(x, btc, PROFILES[p]).length === 0;
+    const n = PROFILE_IDS.map((p) => grid.filter((x) => ok(p, x)).length);
+    expect(n[0]).toBeGreaterThan(0);
+    expect(n[0]).toBeLessThan(n[1]);
+    expect(n[1]).toBeLessThan(n[2]);
+    for (const x of grid) {
+      if (ok('AMAN', x)) expect(ok('MENENGAH', x)).toBe(true);
+      if (ok('MENENGAH', x)) expect(ok('AGRESIF', x)).toBe(true);
+    }
+  });
+
+  it('records every failing rule with a code: SOL 2x volume passes Agresif only', () => {
+    const sol = { ...f, volRatio: 2, hh20Atr: 0.3, atrPct: 1.2 };
+    expect(rejectReasons(sol, btc, PROFILES.AMAN).map((r) => r.code)).toEqual(['VOLUME']);
+    expect(rejectReasons(sol, btc, PROFILES.MENENGAH).map((r) => r.code)).toEqual(['VOLUME']);
+    expect(rejectReasons(sol, btc, PROFILES.AGRESIF)).toEqual([]);
+    const weak = { ...f, volRatio: 2, regime: 'SIDEWAYS' as const, atrPct: 0.7, emaUp: false };
+    expect(rejectReasons(weak, { ...btc, ret30d: -3 }, PROFILES.AGRESIF).map((r) => r.code)).toEqual(['BTC_NEUTRAL', 'COIN_REGIME', 'MOMENTUM', 'ATR_LOW']);
+    expect(rejectReasons(f, { ...btc, ret30d: -8 }, PROFILES.AGRESIF)[0].code).toBe('BTC_BEAR');
+    expect(rejectReasons({ ...f, volRatio: 5, atrPct: 3.5 }, btc, PROFILES.AMAN).map((r) => r.code)).toEqual(['RISK_HIGH']);
+  });
+
+  it('skips a fill that already ran away from the signal close', () => {
+    expect(priceMoved(100, 100.2, 1)).toBeNull();
+    expect(priceMoved(100, 99.4, 1)?.code).toBe('PRICE_MOVED');
+    expect(priceMoved(100, 101.2, 1)?.code).toBe('PRICE_MOVED');
   });
   it('places TP at 0.75 ATR and the stop at 2.5 ATR from the fill', () => {
     const lv = levelsFor(100, 1.2, STRATEGY_V2);

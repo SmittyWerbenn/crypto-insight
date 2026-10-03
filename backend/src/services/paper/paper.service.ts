@@ -1,11 +1,11 @@
-import { asc, desc, eq, inArray } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, sql } from 'drizzle-orm';
 import { getDb } from '../../db/client.js';
-import { paperLedger, paperState, paperTrades } from '../../db/schema.js';
+import { paperLedger, paperScans, paperSignals, paperState, paperTrades } from '../../db/schema.js';
 import { median } from '../../utils/math.js';
 import { getTicker } from '../market/market.service.js';
 import { loadPaperPortfolio, paperSettingsOf } from './engine.js';
-import { MONEY_V2 } from './portfolio.js';
-import { STRATEGY_V2 } from './strategy.js';
+import { MONEY_PROFILES } from './portfolio.js';
+import { PROFILE_IDS, PROFILES, REJECT_LABEL, type ProfileId, type RejectCode } from './strategy.js';
 
 const TZ_OFFSET = 7 * 3_600_000; // WIB
 const wibDate = (t: Date | number) => new Date(new Date(t).getTime() + TZ_OFFSET).toISOString().slice(0, 10);
@@ -37,12 +37,12 @@ export function tradeStats(trades: Pick<TradeRow, 'pnl' | 'pnlPct' | 'exitReason
   };
 }
 
-export async function paperSummary() {
-  const pf = await loadPaperPortfolio();
+export async function paperSummary(profile: ProfileId) {
+  const pf = await loadPaperPortfolio(profile);
   const db = getDb();
-  const [st] = await db.select().from(paperState).where(eq(paperState.id, 1));
-  const trades = await db.select().from(paperTrades);
-  const base = MONEY_V2.baseCapital;
+  const [st] = await db.select().from(paperState).where(eq(paperState.profile, profile));
+  const trades = await db.select().from(paperTrades).where(eq(paperTrades.profile, profile));
+  const base = MONEY_PROFILES[profile].baseCapital;
   const paidIn = base + pf.state.deposits;
   const positions = await Promise.all(
     pf.state.positions.map(async (p) => {
@@ -77,6 +77,7 @@ export async function paperSummary() {
   const equity = pf.state.cash + invested + unrealized;
   const peak = Math.max(st.highWaterMark, equity);
   return {
+    profile,
     startedAt: st.startedAt.toISOString(),
     lastScanAt: st.lastScanAt?.toISOString() ?? null,
     baseCapital: base,
@@ -96,25 +97,28 @@ export async function paperSummary() {
     maxDrawdownPct: Math.min(st.maxDrawdownPct, ((equity - peak) / peak) * 100),
     stats: tradeStats(trades),
     positions,
-    config: { strategy: STRATEGY_V2, money: pf.cfg, settings: paperSettingsOf(st.config) },
+    config: { strategy: PROFILES[profile], money: pf.cfg, settings: paperSettingsOf(st.config) },
   };
 }
 
-export async function paperTradesList(limit = 200, offset = 0) {
-  const rows = await getDb().select().from(paperTrades).orderBy(desc(paperTrades.closedAt)).limit(limit).offset(offset);
+export async function paperTradesList(profile: ProfileId, limit = 200, offset = 0) {
+  const rows = await getDb().select().from(paperTrades).where(eq(paperTrades.profile, profile)).orderBy(desc(paperTrades.closedAt)).limit(limit).offset(offset);
   return rows.map((t) => ({ ...t, openedAt: t.openedAt.toISOString(), closedAt: t.closedAt.toISOString() }));
 }
 
-export async function paperEquity() {
-  const rows = await getDb().select().from(paperLedger).orderBy(asc(paperLedger.time), asc(paperLedger.id));
+export async function paperEquity(profile: ProfileId) {
+  const rows = await getDb().select().from(paperLedger).where(eq(paperLedger.profile, profile)).orderBy(asc(paperLedger.time), asc(paperLedger.id));
   return rows.map((r) => ({ time: r.time.getTime(), event: r.event, symbol: r.symbol, equity: r.equity, cash: r.cash, invested: r.invested, realizedPnl: r.realizedPnl, unrealizedPnl: r.unrealizedPnl, drawdownPct: r.drawdownPct, highWaterMark: r.highWaterMark, openPositions: r.openPositions }));
 }
 
 /** Per WIB day: buys, sells, outcomes, realized P&L; equity carries over day to day (base capital never changes). */
-export async function paperDaily() {
+export async function paperDaily(profile: ProfileId) {
   const db = getDb();
-  const trades = await db.select().from(paperTrades).orderBy(asc(paperTrades.closedAt));
-  const flows = await db.select({ time: paperLedger.time, event: paperLedger.event, amount: paperLedger.amount }).from(paperLedger).where(inArray(paperLedger.event, ['BUY', 'TOPUP']));
+  const trades = await db.select().from(paperTrades).where(eq(paperTrades.profile, profile)).orderBy(asc(paperTrades.closedAt));
+  const flows = await db
+    .select({ time: paperLedger.time, event: paperLedger.event, amount: paperLedger.amount })
+    .from(paperLedger)
+    .where(and(eq(paperLedger.profile, profile), inArray(paperLedger.event, ['BUY', 'TOPUP'])));
   const days = new Map<string, { date: string; buys: number; sells: number; target: number; cutloss: number; timeout: number; pnl: number; fees: number; topUp: number }>();
   const day = (d: string) => days.get(d) ?? days.set(d, { date: d, buys: 0, sells: 0, target: 0, cutloss: 0, timeout: 0, pnl: 0, fees: 0, topUp: 0 }).get(d)!;
   for (const f of flows) {
@@ -130,7 +134,7 @@ export async function paperDaily() {
     else if (t.exitReason === 'CUTLOSS') d.cutloss++;
     else d.timeout++;
   }
-  let equity = MONEY_V2.baseCapital;
+  let equity = MONEY_PROFILES[profile].baseCapital;
   return [...days.values()]
     .sort((a, b) => (a.date < b.date ? -1 : 1))
     .map((d) => {
@@ -140,9 +144,9 @@ export async function paperDaily() {
     });
 }
 
-export async function paperAssets() {
-  const trades = await getDb().select().from(paperTrades);
-  const pf = await loadPaperPortfolio();
+export async function paperAssets(profile: ProfileId) {
+  const trades = await getDb().select().from(paperTrades).where(eq(paperTrades.profile, profile));
+  const pf = await loadPaperPortfolio(profile);
   const per = new Map<string, { symbol: string; cluster: string; trades: number; target: number; cutloss: number; timeout: number; invested: number; pnl: number; maxAllocation: number; openAllocation: number }>();
   const get = (s: string, c: string) => per.get(s) ?? per.set(s, { symbol: s, cluster: c, trades: 0, target: 0, cutloss: 0, timeout: 0, invested: 0, pnl: 0, maxAllocation: 0, openAllocation: 0 }).get(s)!;
   for (const t of trades) {
@@ -157,4 +161,91 @@ export async function paperAssets() {
   }
   for (const p of pf.state.positions) get(p.symbol, p.cluster).openAllocation += p.layers.reduce((a, l) => a + l.cost, 0);
   return [...per.values()].map((a) => ({ ...a, returnPct: a.invested ? (a.pnl / a.invested) * 100 : 0 })).sort((a, b) => b.pnl - a.pnl);
+}
+
+/** Capital utilization from the hourly marks: how much of the equity was actually invested. */
+async function utilization(profile: ProfileId) {
+  const rows = await getDb()
+    .select({ invested: paperLedger.invested, cash: paperLedger.cash, equity: paperLedger.equity })
+    .from(paperLedger)
+    .where(and(eq(paperLedger.profile, profile), inArray(paperLedger.event, ['MARK', 'START'])));
+  const n = rows.length || 1;
+  const inv = rows.map((r) => (r.equity ? r.invested / r.equity : 0));
+  return {
+    marks: rows.length,
+    avgInvestedPct: (100 * inv.reduce((a, b) => a + b, 0)) / n,
+    maxInvestedPct: 100 * Math.max(0, ...inv),
+    avgInvested: rows.reduce((a, r) => a + r.invested, 0) / n,
+    maxInvested: Math.max(0, ...rows.map((r) => r.invested)),
+    avgCashPct: (100 * rows.reduce((a, r) => a + (r.equity ? r.cash / r.equity : 1), 0)) / n,
+    hoursInvestedPct: (100 * inv.filter((v) => v > 0).length) / n,
+  };
+}
+
+/**
+ * Side-by-side view of the three profiles: signal funnel (available → accepted → bought), rejection reasons,
+ * outcomes, P&L, drawdown and capital utilization. `sinceHours` limits the signal funnel window.
+ */
+export async function paperCompare(sinceHours?: number) {
+  const db = getDb();
+  // Only count scans since the profile accounts exist (older scans belong to the single-account V2 run)
+  const [first] = await db.select({ t: sql<Date>`min(${paperState.startedAt})` }).from(paperState).where(inArray(paperState.profile, PROFILE_IDS));
+  const start = first?.t ? new Date(first.t).getTime() : 0;
+  const since = new Date(Math.max(start, sinceHours ? Date.now() - sinceHours * 3_600_000 : 0));
+  const scans = await db
+    .select({ n: sql<number>`count(*)::int`, withSignal: sql<number>`count(*) filter (where ${paperScans.signals} > 0)::int`, signals: sql<number>`coalesce(sum(${paperScans.signals}), 0)::int` })
+    .from(paperScans)
+    .where(gte(paperScans.time, since));
+  const decisions = await db
+    .select({ profile: paperSignals.profile, decision: paperSignals.decision, stage: paperSignals.stage, reasons: paperSignals.reasons })
+    .from(paperSignals)
+    .where(gte(paperSignals.time, since));
+  const profiles = [];
+  for (const profile of PROFILE_IDS) {
+    const mine = decisions.filter((d) => d.profile === profile);
+    const reasons: Partial<Record<RejectCode, number>> = {};
+    const primary: Partial<Record<RejectCode, number>> = {};
+    for (const d of mine) {
+      if (d.decision !== 'REJECT') continue;
+      const rs = d.reasons as { code: RejectCode }[];
+      if (rs[0]) primary[rs[0].code] = (primary[rs[0].code] ?? 0) + 1;
+      for (const r of rs) reasons[r.code] = (reasons[r.code] ?? 0) + 1;
+    }
+    const summary = await paperSummary(profile);
+    const signals = mine.length;
+    const ruleRejected = mine.filter((d) => d.stage === 'RULE').length;
+    const accepted = signals - ruleRejected;
+    const entered = mine.filter((d) => d.decision === 'ACCEPT').length;
+    profiles.push({
+      profile,
+      funnel: { signals, ruleRejected, accepted, acceptedPct: signals ? (accepted / signals) * 100 : 0, moneyRejected: accepted - entered, entered },
+      reasons: Object.entries(reasons)
+        .map(([code, n]) => ({ code, label: REJECT_LABEL[code as RejectCode], n, primary: primary[code as RejectCode] ?? 0 }))
+        .sort((a, b) => b.n - a.n),
+      stats: summary.stats,
+      equity: summary.equity,
+      totalPnl: summary.totalPnl,
+      returnPct: summary.returnPct,
+      maxDrawdownPct: summary.maxDrawdownPct,
+      openPositions: summary.positions.length,
+      cash: summary.cash,
+      invested: summary.invested,
+      feesPaid: summary.feesPaid,
+      startedAt: summary.startedAt,
+      utilization: await utilization(profile),
+    });
+  }
+  return { since: since.toISOString(), scans: scans[0], profiles };
+}
+
+/** Recent breakout signals with every profile's decision side by side. */
+export async function paperSignalLog(limit = 100) {
+  const rows = await getDb().select().from(paperSignals).orderBy(desc(paperSignals.time), desc(paperSignals.id)).limit(limit * PROFILE_IDS.length);
+  const bySignal = new Map<string, { time: string; symbol: string; features: unknown; decisions: Partial<Record<ProfileId, { decision: string; stage: string; reasons: unknown }>> }>();
+  for (const r of rows) {
+    const key = `${r.time.getTime()}:${r.symbol}`;
+    const s = bySignal.get(key) ?? bySignal.set(key, { time: r.time.toISOString(), symbol: r.symbol, features: r.features, decisions: {} }).get(key)!;
+    s.decisions[r.profile as ProfileId] = { decision: r.decision, stage: r.stage, reasons: r.reasons };
+  }
+  return [...bySignal.values()].slice(0, limit);
 }

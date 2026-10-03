@@ -1,6 +1,6 @@
 // Portfolio simulation of Rp1.000.000 with the shared backend modules (strategy + portfolio ledger).
 import { bars, idxAt, loadCands, H, M5, type Cand } from './lib.ts';
-import { entryCheck, levelsFor, type StrategyConfig } from '../../src/services/paper/strategy.ts';
+import { entryCheck, isSignal, levelsFor, rejectReasons, type RejectCode, type StrategyConfig } from '../../src/services/paper/strategy.ts';
 import { PaperPortfolio, type MoneyConfig, type ClosedTrade } from '../../src/services/paper/portfolio.ts';
 
 let CANDS: Cand[] | null = null;
@@ -14,16 +14,28 @@ export function cands() {
 }
 
 export type LayerMode = 'none' | 'strength' | 'dynamic';
-export interface RunOpts { from: number; to: number; strat: StrategyConfig; money: MoneyConfig; layerMode?: LayerMode; extraRule?: (c: Cand) => boolean; rank?: (c: Cand) => number }
+export interface RunOpts { from: number; to: number; strat: StrategyConfig; money: MoneyConfig; layerMode?: LayerMode; extraRule?: (c: Cand) => boolean; accept?: (c: Cand) => boolean; rank?: (c: Cand) => number; /** Profile mode: every breakout signal is judged by rejectReasons(strat) and counted in the funnel. */ funnel?: boolean }
 
 export function runPortfolio(o: RunOpts) {
   const { C, K } = cands();
   const pf = new PaperPortfolio(o.money);
   const skipped: Record<string, number> = {};
   const byHour = new Map<number, Cand[]>();
+  const funnel = { signals: 0, ruleRejected: 0, rulePassed: 0, entered: 0, moneySkipped: 0, reasons: {} as Partial<Record<RejectCode, number>>, primary: {} as Partial<Record<RejectCode, number>>, money: {} as Partial<Record<RejectCode, number>> };
   for (const c of C) {
     if (c.at < o.from || c.at >= o.to) continue;
-    if (entryCheck(c, c.btc, o.strat) !== null) continue;
+    if (o.funnel) {
+      if (!isSignal(c)) continue;
+      funnel.signals++;
+      const rr = rejectReasons(c, c.btc, o.strat);
+      if (rr.length) {
+        funnel.ruleRejected++;
+        funnel.primary[rr[0].code] = (funnel.primary[rr[0].code] ?? 0) + 1;
+        for (const r of rr) funnel.reasons[r.code] = (funnel.reasons[r.code] ?? 0) + 1;
+        continue;
+      }
+      funnel.rulePassed++;
+    } else if (o.accept ? !o.accept(c) : entryCheck(c, c.btc, o.strat) !== null) continue;
     if (o.extraRule && !o.extraRule(c)) continue;
     (byHour.get(c.at) ?? byHour.set(c.at, []).get(c.at)!).push(c);
   }
@@ -34,7 +46,8 @@ export function runPortfolio(o: RunOpts) {
     return i < b.t.length && b.t[i] - t < 30 * 60_000 ? b.o[i] : null;
   };
   pf.mark(o.from, {}, 'START');
-  let invSum = 0, invN = 0;
+  let invSum = 0, invN = 0, invMax = 0, cashSum = 0;
+  const util: number[] = [];
   for (let t = o.from; t < o.to; t += M5) {
     // 1) exits on the 5m bar that starts at t
     for (const p of [...pf.state.positions]) {
@@ -70,17 +83,19 @@ export function runPortfolio(o: RunOpts) {
       const lv = levelsFor(px, c.atrPct, o.strat);
       const r = pf.open({ symbol: c.sym, time: t, price: px, tp: lv.tp, sl: lv.sl, slPct: lv.slPct, atrPct: c.atrPct, maxHoldH: o.strat.maxHoldH, meta: { score: c.score, volRatio: c.volRatio, rsi: c.rsi, atrPct: c.atrPct, atrPctile: c.atrPctile, regime: c.regime, btcRet30d: c.btc.ret30d, btcRegime: c.btc.regime, macdHist: c.macdHist, roc: c.roc } });
       if (r.reason) skipped[r.reason.replace(/[\d.]+/g, '#')] = (skipped[r.reason.replace(/[\d.]+/g, '#')] ?? 0) + 1;
+      if (r.code) { funnel.moneySkipped++; funnel.money[r.code] = (funnel.money[r.code] ?? 0) + 1; } else funnel.entered++;
     }
     // 4) hourly mark-to-market
     const prices: Record<string, number> = {};
     for (const p of pf.state.positions) { const px = priceAt(p.symbol, t); if (px !== null) prices[p.symbol] = px; }
-    pf.mark(t, prices);
+    const m = pf.mark(t, prices);
     invSum += pf.invested; invN++;
+    invMax = Math.max(invMax, m.invested / m.equity); cashSum += m.cash / m.equity; util.push(m.invested / m.equity);
   }
   // close anything still open at the end at market (end of the period)
   for (const p of [...pf.state.positions]) { const px = priceAt(p.symbol, o.to - M5) ?? p.layers[0].price; pf.close(p, o.to, px, 'TIMEOUT'); }
   pf.mark(o.to, {});
-  return { pf, skipped, utilization: invSum / invN / o.money.baseCapital };
+  return { pf, skipped, funnel, utilization: invSum / invN / o.money.baseCapital, avgInvestedPct: (100 * util.reduce((a, b) => a + b, 0)) / (util.length || 1), maxInvestedPct: 100 * invMax, avgCashPct: (100 * cashSum) / (invN || 1), hoursInvestedPct: (100 * util.filter((u) => u > 0).length) / (util.length || 1) };
 }
 
 export function summarize(pf: PaperPortfolio, base: number) {
