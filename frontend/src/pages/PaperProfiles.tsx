@@ -8,6 +8,102 @@ import { baseAsset, fmtDate } from '@/utils/format';
 import { cn } from '@/utils/cn';
 import { AXIS, fmtRp, MONEY_CODES, pct, PROFILE_LABEL, PROFILES, REJECT_LABEL, tone, type ProfileId } from './paperFormat';
 
+/* ---------- live: progress toward the monthly target ---------- */
+interface MonthRow { month: string; pnl: number; realizedPnl: number; unrealizedPnl: number; trades: number; wins: number; paidIn: number; returnPct: number; targetPnl: number; hit: boolean }
+interface MonthlyProfile { profile: ProfileId; targetPct: number; current: MonthRow; openPositions: number; history: MonthRow[]; backtest: { months: number; hitMonths: number; redMonths: number; medianPct: number; avgPct: number } | null }
+interface Monthly { month: string; dayOfMonth: number; daysInMonth: number; profiles: MonthlyProfile[] }
+const MONTH_NAME = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+const monthLabel = (m: string) => `${MONTH_NAME[Number(m.slice(5, 7)) - 1]} ${m.slice(0, 4)}`;
+
+export function MonthlyTargetCard() {
+  const q = useQuery({ queryKey: ['paper', 'monthly'], queryFn: () => api<Monthly>('/api/paper/monthly'), refetchInterval: 120_000 });
+  const d = q.data;
+  if (q.isError) return null; // backend before the monthly endpoint: the rest of the page still works
+  if (!d) return null;
+  const by = Object.fromEntries(d.profiles.map((p) => [p.profile, p])) as Record<ProfileId, MonthlyProfile>;
+  const months = [...new Set(d.profiles.flatMap((p) => p.history.map((h) => h.month)))].sort().reverse();
+  return (
+    <Card>
+      <CardHeader
+        title={`Target bulanan · ${monthLabel(d.month)}`}
+        subtitle={`Hari ke-${d.dayOfMonth} dari ${d.daysInMonth} · P&L trade yang selesai bulan ini + posisi yang masih terbuka, dibagi modal disetor`}
+      />
+      <CardBody className="space-y-4">
+        <div className="grid gap-3 md:grid-cols-3">
+          {PROFILES.map((meta) => {
+            const p = by[meta.id];
+            if (!p) return null;
+            const c = p.current;
+            const progress = Math.max(0, Math.min(1, c.returnPct / p.targetPct));
+            return (
+              <div key={meta.id} className="rounded-lg border border-border p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="flex items-center gap-2 text-sm font-semibold text-ink">
+                    <span className="h-2.5 w-2.5 rounded-full" style={{ background: meta.color }} aria-hidden />
+                    {meta.label}
+                  </span>
+                  <span className="text-xs text-ink-3">target {pct(p.targetPct, 0)}</span>
+                </div>
+                <div className={cn('num mt-2 text-2xl font-semibold', tone(c.returnPct))}>{pct(c.returnPct, 2, true)}</div>
+                <div
+                  className="mt-2 h-2 overflow-hidden rounded-full border border-border bg-bg"
+                  role="meter"
+                  aria-label={`Progres ${meta.label} menuju target ${p.targetPct}%`}
+                  aria-valuemin={0}
+                  aria-valuemax={p.targetPct}
+                  aria-valuenow={Math.max(0, c.returnPct)}
+                >
+                  <div className="h-full rounded-full" style={{ width: `${progress * 100}%`, background: meta.color }} />
+                </div>
+                <div className="mt-2 space-y-0.5 text-xs text-ink-2">
+                  <div>
+                    <span className={tone(c.pnl)}>{fmtRp(c.pnl, true)}</span> dari target {fmtRp(c.targetPnl)}
+                    {c.hit ? <span className="ml-1 font-semibold text-up">· tercapai</span> : <span className="text-ink-3"> · kurang {fmtRp(Math.max(0, c.targetPnl - c.pnl))}</span>}
+                  </div>
+                  <div className="text-ink-3">
+                    Terealisasi {fmtRp(c.realizedPnl, true)} · posisi terbuka {fmtRp(c.unrealizedPnl, true)} ({p.openPositions}) · {c.trades} trade selesai
+                  </div>
+                  {p.backtest && (
+                    <div className="text-ink-3">
+                      Backtest: target tercapai {p.backtest.hitMonths} dari {p.backtest.months} bulan · median {pct(p.backtest.medianPct, 1, true)} · rata-rata {pct(p.backtest.avgPct, 1, true)}/bulan
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        {months.length > 1 && (
+          <div className="overflow-x-auto">
+            <Table>
+              <THead><TR><TH>Bulan</TH>{PROFILES.map((p) => <TH key={p.id}>{p.label} (target {by[p.id]?.targetPct ?? '–'}%)</TH>)}</TR></THead>
+              <TBody>
+                {months.map((m) => (
+                  <TR key={m}>
+                    <TD className="whitespace-nowrap">{monthLabel(m)}{m === d.month ? <span className="text-xs text-ink-3"> · berjalan</span> : null}</TD>
+                    {PROFILES.map((meta) => {
+                      const h = by[meta.id]?.history.find((x) => x.month === m);
+                      if (!h) return <TD key={meta.id}>–</TD>;
+                      return (
+                        <TD key={meta.id} className="num whitespace-nowrap text-xs">
+                          <span className={cn('font-semibold', tone(h.returnPct))}>{pct(h.returnPct, 2, true)}</span>
+                          <span className="text-ink-3"> · {fmtRp(h.pnl, true)} · {h.trades} trade</span>
+                          {h.hit && <span className="ml-1 font-semibold text-up">✓ target</span>}
+                        </TD>
+                      );
+                    })}
+                  </TR>
+                ))}
+              </TBody>
+            </Table>
+          </div>
+        )}
+        <p className="text-xs text-ink-3">Target adalah sasaran yang dipantau, bukan janji hasil. Di backtest, target hanya tercapai di bulan-bulan dengan rally altcoin kuat.</p>
+      </CardBody>
+    </Card>
+  );
+}
+
 /* ---------- live: the three accounts side by side ---------- */
 interface Utilization { marks: number; avgInvestedPct: number; maxInvestedPct: number; avgInvested: number; maxInvested: number; avgCashPct: number; hoursInvestedPct: number }
 interface CompareRow {

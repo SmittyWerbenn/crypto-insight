@@ -5,7 +5,8 @@ import { median } from '../../utils/math.js';
 import { getTicker } from '../market/market.service.js';
 import { loadPaperPortfolio, paperSettingsOf } from './engine.js';
 import { MONEY_PROFILES } from './portfolio.js';
-import { PROFILE_IDS, PROFILES, REJECT_LABEL, type ProfileId, type RejectCode } from './strategy.js';
+import { MONTHLY_TARGET_PCT, PROFILE_IDS, PROFILES, REJECT_LABEL, type ProfileId, type RejectCode } from './strategy.js';
+import { RESEARCH_PROFILES } from './research-profiles.data.js';
 
 const TZ_OFFSET = 7 * 3_600_000; // WIB
 const wibDate = (t: Date | number) => new Date(new Date(t).getTime() + TZ_OFFSET).toISOString().slice(0, 10);
@@ -248,4 +249,67 @@ export async function paperSignalLog(limit = 100) {
     s.decisions[r.profile as ProfileId] = { decision: r.decision, stage: r.stage, reasons: r.reasons };
   }
   return [...bySignal.values()].slice(0, limit);
+}
+
+const wibMonth = (t: Date | number) => wibDate(t).slice(0, 7);
+
+/**
+ * Progress toward the monthly target per profile (WIB calendar months). A month's return = P&L of the trades
+ * closed in it ÷ paid-in capital at the end of that month (the same measure as the backtest's monthly table);
+ * the running month also counts the unrealized P&L of the open positions.
+ */
+export async function paperMonthly() {
+  const db = getDb();
+  const now = Date.now();
+  const month = wibMonth(now);
+  const [y, m] = month.split('-').map(Number);
+  const daysInMonth = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  const dayOfMonth = Number(wibDate(now).slice(8, 10));
+  const research = RESEARCH_PROFILES as unknown as { monthly?: Record<ProfileId, { month: string; pnl: number }[]>; results?: Record<ProfileId, { fee: { full: { perMonthReturnPct?: number } } }> };
+  const profiles = await Promise.all(
+    PROFILE_IDS.map(async (profile) => {
+      const base = MONEY_PROFILES[profile].baseCapital;
+      const trades = await db.select({ closedAt: paperTrades.closedAt, pnl: paperTrades.pnl }).from(paperTrades).where(eq(paperTrades.profile, profile));
+      const topups = await db
+        .select({ time: paperLedger.time, amount: paperLedger.amount })
+        .from(paperLedger)
+        .where(and(eq(paperLedger.profile, profile), eq(paperLedger.event, 'TOPUP')));
+      const [st] = await db.select({ startedAt: paperState.startedAt }).from(paperState).where(eq(paperState.profile, profile));
+      const months = new Map<string, { month: string; pnl: number; trades: number; wins: number }>();
+      const row = (k: string) => months.get(k) ?? months.set(k, { month: k, pnl: 0, trades: 0, wins: 0 }).get(k)!;
+      if (st) for (let t = st.startedAt.getTime(); wibMonth(t) <= month; t += 27 * 86_400_000) row(wibMonth(t));
+      row(month);
+      for (const t of trades) {
+        const r = row(wibMonth(t.closedAt));
+        r.pnl += t.pnl;
+        r.trades++;
+        if (t.pnl > 0) r.wins++;
+      }
+      const paidInAt = (k: string) => base + topups.filter((x) => wibMonth(x.time) <= k).reduce((a, x) => a + x.amount, 0);
+      const summary = await paperSummary(profile);
+      const target = MONTHLY_TARGET_PCT[profile];
+      const history = [...months.values()]
+        .sort((a, b) => (a.month < b.month ? 1 : -1))
+        .map((r) => {
+          const paidIn = paidInAt(r.month);
+          const unrealized = r.month === month ? summary.unrealizedPnl : 0;
+          const pnl = r.pnl + unrealized;
+          const returnPct = (pnl / paidIn) * 100;
+          return { ...r, realizedPnl: r.pnl, unrealizedPnl: unrealized, pnl, paidIn, returnPct, targetPnl: (paidIn * target) / 100, hit: returnPct >= target };
+        });
+      const bt = (research.monthly?.[profile] ?? []).map((x) => (x.pnl / base) * 100);
+      const sorted = [...bt].sort((a, b) => a - b);
+      return {
+        profile,
+        targetPct: target,
+        current: history.find((h) => h.month === month)!,
+        openPositions: summary.positions.length,
+        history,
+        backtest: bt.length
+          ? { months: bt.length, hitMonths: bt.filter((x) => x >= target).length, redMonths: bt.filter((x) => x < 0).length, medianPct: sorted[sorted.length >> 1], avgPct: research.results?.[profile]?.fee.full.perMonthReturnPct ?? bt.reduce((a, x) => a + x, 0) / bt.length }
+          : null,
+      };
+    }),
+  );
+  return { month, dayOfMonth, daysInMonth, profiles };
 }

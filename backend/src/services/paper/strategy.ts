@@ -154,6 +154,9 @@ export const PROFILES_V1: Record<ProfileId, StrategyConfig> = {
   AGRESIF: { minVolRatio: 1.5, regimes: ['BULL'], btcRet30dMin: 0, requireEmaUp: true, minBreakoutAtr: 0, minAtrPct: 1, maxAtrPct: 6, tpAtr: 2, slAtr: 2, maxHoldH: 12 },
 };
 
+/** Monthly return the user aims for per profile (set 2026-10-06), % of paid-in capital. A goal to track, not a backtest result. */
+export const MONTHLY_TARGET_PCT: Record<ProfileId, number> = { AMAN: 10, MENENGAH: 20, AGRESIF: 30 };
+
 export const PROFILE_LABEL: Record<ProfileId, string> = { AMAN: 'Aman', MENENGAH: 'Menengah', AGRESIF: 'Agresif' };
 
 /** The first V2 strategy (2026-10-02), kept as the research baseline. */

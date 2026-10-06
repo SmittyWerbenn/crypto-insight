@@ -8,7 +8,7 @@ import { Table, TBody, TD, TH, THead, TR } from '@/components/ui/table';
 import { baseAsset, fmtDate, fmtPriceSym } from '@/utils/format';
 import { cn } from '@/utils/cn';
 import { AXIS, fmtRp, pct, PROFILE_LABEL, PROFILES, tone, type ProfileId } from './paperFormat';
-import { CompareCard, ProfilesResearch, scanSummaryFor, SignalLog } from './PaperProfiles';
+import { CompareCard, MonthlyTargetCard, ProfilesResearch, scanSummaryFor, SignalLog } from './PaperProfiles';
 
 /* ---------- types ---------- */
 interface Stats {
@@ -205,6 +205,7 @@ function Live({ profile, setProfile }: { profile: ProfileId; setProfile: (p: Pro
           Server masih menjalankan Paper Trading V2 satu akun. Data di bawah adalah akun lama; perbandingan Aman / Menengah / Agresif muncul setelah backend di-deploy ulang.
         </Notice>
       )}
+      {!legacyBackend && <MonthlyTargetCard />}
       {!legacyBackend && <CompareCard />}
       <div className="flex flex-wrap items-center gap-3">
         <Segmented value={profile} onChange={setProfile} className={legacyBackend ? 'pointer-events-none opacity-50' : undefined} options={PROFILES.map((p) => ({ value: p.id, label: p.label }))} />

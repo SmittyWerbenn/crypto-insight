@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { isDbReady } from '../db/client.js';
 import { AppError } from '../utils/errors.js';
 import { latestScans, scanPaper, topUpPaper, updatePaperSettings } from '../services/paper/engine.js';
-import { paperAssets, paperCompare, paperDaily, paperEquity, paperSignalLog, paperSummary, paperTradesList } from '../services/paper/paper.service.js';
+import { paperAssets, paperCompare, paperDaily, paperEquity, paperMonthly, paperSignalLog, paperSummary, paperTradesList } from '../services/paper/paper.service.js';
 import { PROFILE_IDS } from '../services/paper/strategy.js';
 import { RESEARCH_PROFILES } from '../services/paper/research-profiles.data.js';
 import { RESEARCH_V2 } from '../services/paper/research-v2.data.js';
@@ -32,6 +32,7 @@ export async function paperRoutes(app: FastifyInstance) {
   app.get('/api/paper/assets', async (req) => paperAssets(profileOf(req.query)));
 
   /** The three profiles side by side: signal funnel, rejection reasons, outcomes, utilization. */
+  app.get('/api/paper/monthly', async () => paperMonthly());
   app.get('/api/paper/compare', async (req) => {
     const { hours } = z.object({ hours: z.coerce.number().int().min(1).max(24 * 365).optional() }).parse(req.query);
     return paperCompare(hours);
