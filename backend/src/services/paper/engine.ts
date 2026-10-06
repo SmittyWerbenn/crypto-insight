@@ -8,7 +8,7 @@ import { getCandles } from '../market/candles.service.js';
 import { getTicker } from '../market/market.service.js';
 import { FeatureSeries, type BtcContext, type CoinFeatures } from './features.js';
 import { MONEY_PROFILES, MONEY_V2, PaperPortfolio, type ClosedTrade, type Layer, type LedgerRow, type MoneyConfig, type Position } from './portfolio.js';
-import { btcState, isSignal, levelsFor, priceMoved, PROFILE_IDS, PROFILE_LABEL, PROFILES, rejectReasons, UNIVERSE_V2, type ProfileId, type Rejection } from './strategy.js';
+import { btcState, isSignal, levelsFor, priceMoved, PROFILE_IDS, PROFILE_LABEL, PROFILES, rejectReasons, UNIVERSE, type ProfileId, type Rejection } from './strategy.js';
 
 /**
  * Live Paper Trading V2 engine: three accounts (Aman, Menengah, Agresif), Rp10.000.000 each, same market data.
@@ -243,7 +243,7 @@ async function processExits(pf: PaperPortfolio, now: number): Promise<number> {
         done = true;
         break;
       }
-      if (b.high >= p.tp) {
+      if (p.tp !== null && b.high >= p.tp) {
         p.high = Math.max(p.high, p.tp);
         pf.close(p, b.openTime + M5, p.tp, 'TARGET');
         done = true;
@@ -293,7 +293,7 @@ export interface ScanEntry {
   price: number;
   amount: number;
   allocationPct: number;
-  tp: number;
+  tp: number | null;
   sl: number;
 }
 export interface ScanResult {
@@ -445,7 +445,7 @@ export async function scanPaper(): Promise<ScanResult | null> {
     for (const p of PROFILE_IDS) await processExits(pfs[p], now);
 
     const feats: { symbol: string; fs: FeatureSeries; i: number }[] = [];
-    for (const symbol of UNIVERSE_V2) {
+    for (const symbol of UNIVERSE) {
       try {
         const candles = await getCandles(symbol, '1h', { limit: 1000 });
         const i = candles.length - 1;

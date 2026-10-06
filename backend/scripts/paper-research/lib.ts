@@ -17,26 +17,30 @@ export interface Cand extends CoinFeatures {
   btc: BtcContext;
 }
 
+const SIGNALS_ONLY = process.env.PAPER_SIGNALS_ONLY === '1';
 export const SYMS = readdirSync(`${DIR}/k1h`).map((f) => f.replace('.json', '')).sort();
 
 export function loadCands(): Cand[] {
   const f = `${DIR}/cands.json`;
   if (existsSync(f)) return JSON.parse(readFileSync(f, 'utf8'));
-  const fs: Record<string, FeatureSeries> = {};
-  for (const s of SYMS) {
+  // One coin at a time (only BTC stays loaded), so large universes fit in memory.
+  const series = (s: string) => {
     const raw: number[][] = JSON.parse(readFileSync(`${DIR}/k1h/${s}.json`, 'utf8'));
-    fs[s] = new FeatureSeries(raw.map((x) => ({ openTime: x[0], open: x[1], high: x[2], low: x[3], close: x[4], volume: x[5], closeTime: x[0] + H - 1, quoteVolume: x[6] })));
-  }
-  const btcIdx = new Map(fs.BTCUSDT.candles.map((c, i) => [c.openTime, i]));
+    return new FeatureSeries(raw.map((x) => ({ openTime: x[0], open: x[1], high: x[2], low: x[3], close: x[4], volume: x[5], closeTime: x[0] + H - 1, quoteVolume: x[6] })));
+  };
+  const BTC = series('BTCUSDT');
+  const btcIdx = new Map(BTC.candles.map((c, i) => [c.openTime, i]));
   const out: Cand[] = [];
   for (const s of SYMS) {
-    const F = fs[s];
+    const F = s === 'BTCUSDT' ? BTC : series(s);
     for (let i = 0; i < F.candles.length; i++) {
       if (F.candles[i].openTime < START - H) continue;
       const f = F.at(i);
       const bi = btcIdx.get(F.candles[i].openTime);
-      const btc = bi !== undefined ? fs.BTCUSDT.btcAt(bi) : null;
+      const btc = bi !== undefined ? BTC.btcAt(bi) : null;
       if (!f || !btc) continue;
+      // PAPER_SIGNALS_ONLY=1 keeps only breakout signals (what the portfolio studies need) to fit big universes in memory.
+      if (SIGNALS_ONLY && !(f.hh20Atr > 0 && f.volRatio >= 1.5)) continue;
       out.push({ ...f, sym: s, at: f.time + H, btc });
     }
     console.error('features', s, out.length);

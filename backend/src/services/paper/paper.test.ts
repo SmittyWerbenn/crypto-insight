@@ -121,27 +121,28 @@ describe('Paper Trading V2 strategy', () => {
     expect(isSignal({ ...f, volRatio: 1.4 })).toBe(false);
   });
 
-  it('profiles are nested: whatever Aman accepts, Menengah and Agresif accept too', () => {
+  it('profiles are nested: whatever Aman accepts, Menengah and Agresif accept too (Agresif = Menengah rules, bigger size)', () => {
     const grid: CoinFeatures[] = [];
     for (const volRatio of [1.5, 2, 3, 4, 6]) for (const hh20Atr of [0.1, 0.3, 1]) for (const atrPct of [0.8, 1.2, 3.5, 5]) for (const emaUp of [true, false]) grid.push({ ...f, volRatio, hh20Atr, atrPct, emaUp });
     const ok = (p: (typeof PROFILE_IDS)[number], x: CoinFeatures) => rejectReasons(x, btc, PROFILES[p]).length === 0;
     const n = PROFILE_IDS.map((p) => grid.filter((x) => ok(p, x)).length);
     expect(n[0]).toBeGreaterThan(0);
     expect(n[0]).toBeLessThan(n[1]);
-    expect(n[1]).toBeLessThan(n[2]);
+    expect(n[1]).toBe(n[2]);
     for (const x of grid) {
       if (ok('AMAN', x)) expect(ok('MENENGAH', x)).toBe(true);
       if (ok('MENENGAH', x)) expect(ok('AGRESIF', x)).toBe(true);
     }
   });
 
-  it('records every failing rule with a code: SOL 2x volume passes Agresif only', () => {
+  it('records every failing rule with a code: 2x volume is too weak for every profile', () => {
     const sol = { ...f, volRatio: 2, hh20Atr: 0.3, atrPct: 1.2 };
     expect(rejectReasons(sol, btc, PROFILES.AMAN).map((r) => r.code)).toEqual(['VOLUME']);
     expect(rejectReasons(sol, btc, PROFILES.MENENGAH).map((r) => r.code)).toEqual(['VOLUME']);
-    expect(rejectReasons(sol, btc, PROFILES.AGRESIF)).toEqual([]);
+    expect(rejectReasons(sol, btc, PROFILES.AGRESIF).map((r) => r.code)).toEqual(['VOLUME']);
+    expect(rejectReasons({ ...sol, volRatio: 3.5 }, btc, PROFILES.AGRESIF)).toEqual([]);
     const weak = { ...f, volRatio: 2, regime: 'SIDEWAYS' as const, atrPct: 0.7, emaUp: false };
-    expect(rejectReasons(weak, { ...btc, ret30d: -3 }, PROFILES.AGRESIF).map((r) => r.code)).toEqual(['BTC_NEUTRAL', 'COIN_REGIME', 'MOMENTUM', 'ATR_LOW']);
+    expect(rejectReasons(weak, { ...btc, ret30d: -3 }, PROFILES.AGRESIF).map((r) => r.code)).toEqual(['BTC_NEUTRAL', 'COIN_REGIME', 'VOLUME', 'MOMENTUM', 'ATR_LOW']);
     expect(rejectReasons(f, { ...btc, ret30d: -8 }, PROFILES.AGRESIF)[0].code).toBe('BTC_BEAR');
     expect(rejectReasons({ ...f, volRatio: 5, atrPct: 3.5 }, btc, PROFILES.AMAN).map((r) => r.code)).toEqual(['RISK_HIGH']);
   });
@@ -155,5 +156,14 @@ describe('Paper Trading V2 strategy', () => {
     const lv = levelsFor(100, 1.2, STRATEGY_V2);
     expect(lv.tp).toBeCloseTo(100.9);
     expect(lv.sl).toBeCloseTo(97);
+  });
+  it('Menengah/Agresif have no take profit, Aman a far one (12 ATR); stop 2 ATR, out after 48h', () => {
+    for (const p of PROFILE_IDS) {
+      const lv = levelsFor(100, 1.5, PROFILES[p]);
+      if (p === 'AMAN') expect(lv.tp).toBeCloseTo(118);
+      else expect(lv.tp).toBeNull();
+      expect(lv.sl).toBeCloseTo(97);
+      expect(PROFILES[p].maxHoldH).toBe(48);
+    }
   });
 });

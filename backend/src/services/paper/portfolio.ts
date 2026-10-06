@@ -59,8 +59,11 @@ export const PAPER_CAPITAL = 10_000_000;
 export const MONEY_PROFILES: Record<ProfileId, MoneyConfig> = {
   AMAN: { ...MONEY_V2, baseCapital: PAPER_CAPITAL, riskPerTrade: 0.005, maxPerCoin: 0.2, maxPositions: 3, cashReserve: 0.4, maxExposure: 0.6, maxClusterExposure: 0.4 },
   MENENGAH: { ...MONEY_V2, baseCapital: PAPER_CAPITAL, riskPerTrade: 0.0075, maxPerCoin: 0.2, maxPositions: 4, cashReserve: 0.3, maxExposure: 0.7, maxClusterExposure: 0.5 },
-  AGRESIF: { ...MONEY_V2, baseCapital: PAPER_CAPITAL, riskPerTrade: 0.0125, maxPerCoin: 0.25, maxPositions: 6, cashReserve: 0.1, maxExposure: 0.9, maxClusterExposure: 0.6 },
+  AGRESIF: { ...MONEY_V2, baseCapital: PAPER_CAPITAL, riskPerTrade: 0.015, maxPerCoin: 0.3, maxPositions: 6, cashReserve: 0.1, maxExposure: 0.9, maxClusterExposure: 0.6 },
 };
+
+/** Money management before the 2026-10-06 revision (Agresif 1.25% risk, 25% per coin), for the research comparison. */
+export const MONEY_PROFILES_V1: Record<ProfileId, MoneyConfig> = { ...MONEY_PROFILES, AGRESIF: { ...MONEY_PROFILES.AGRESIF, riskPerTrade: 0.0125, maxPerCoin: 0.25 } };
 
 export interface Layer {
   time: number;
@@ -79,7 +82,8 @@ export interface Position {
   /** Planned size for all layers, in Rupiah at the first fill. */
   plannedCost: number;
   layers: Layer[];
-  tp: number;
+  /** null = no target (exit on the stop or the time limit). */
+  tp: number | null;
   sl: number;
   timeoutAt: number;
   atrPct: number;
@@ -110,7 +114,7 @@ export interface ClosedTrade {
   holdH: number;
   mfePct: number;
   maePct: number;
-  tp: number;
+  tp: number | null;
   sl: number;
   meta: Record<string, unknown>;
   /** Portfolio state right after the close. */
@@ -213,7 +217,7 @@ export class PaperPortfolio {
     return null;
   }
 
-  open(o: { symbol: string; time: number; price: number; tp: number; sl: number; slPct: number; atrPct: number; maxHoldH: number; meta?: Record<string, unknown> }): { position: Position | null; reason: string | null; code: RejectCode | null } {
+  open(o: { symbol: string; time: number; price: number; tp: number | null; sl: number; slPct: number; atrPct: number; maxHoldH: number; meta?: Record<string, unknown> }): { position: Position | null; reason: string | null; code: RejectCode | null } {
     const planned = this.plannedSize(o.slPct);
     const first = planned * this.cfg.layers[0];
     const no = this.canOpen(o.symbol, first);

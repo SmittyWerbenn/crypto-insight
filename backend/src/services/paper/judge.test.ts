@@ -11,14 +11,14 @@ const feat = (o: Partial<CoinFeatures>) => ({ close: 100, score: 80, signal: 'BU
 const accounts = () => Object.fromEntries(PROFILE_IDS.map((p) => [p, new PaperPortfolio({ ...MONEY_PROFILES[p], feeRate: 0.001 })])) as never;
 
 describe('judgeSignals: each profile accepts or rejects every signal, with reasons', () => {
-  it('strong signal → all buy; 2x volume → only Agresif; SIDEWAYS → nobody', async () => {
+  it('strong signal → all buy; 3.5x volume → Menengah and Agresif; SIDEWAYS → nobody', async () => {
     const pfs = accounts();
     const r = await judgeSignals({
       now: 0,
       btc,
       signals: [
         { symbol: 'SOLUSDT', f: feat({}) },
-        { symbol: 'NEARUSDT', f: feat({ volRatio: 2 }) },
+        { symbol: 'ENAUSDT', f: feat({ volRatio: 3.5 }) },
         { symbol: 'ZECUSDT', f: feat({ regime: 'SIDEWAYS' }) },
       ],
       pfs,
@@ -26,14 +26,18 @@ describe('judgeSignals: each profile accepts or rejects every signal, with reaso
     });
     const d = (sym: string, p: string) => r.decisions.find((x) => x.symbol === sym && x.profile === p)!;
     for (const p of PROFILE_IDS) expect(d('SOLUSDT', p).decision).toBe('ACCEPT');
-    expect(d('NEARUSDT', 'AMAN')).toMatchObject({ decision: 'REJECT', stage: 'RULE', reasons: [{ code: 'VOLUME' }] });
-    expect(d('NEARUSDT', 'MENENGAH').decision).toBe('REJECT');
-    expect(d('NEARUSDT', 'AGRESIF').decision).toBe('ACCEPT');
+    expect(d('ENAUSDT', 'AMAN')).toMatchObject({ decision: 'REJECT', stage: 'RULE', reasons: [{ code: 'VOLUME' }] });
+    expect(d('ENAUSDT', 'MENENGAH').decision).toBe('ACCEPT');
+    expect(d('ENAUSDT', 'AGRESIF').decision).toBe('ACCEPT');
     for (const p of PROFILE_IDS) expect(d('ZECUSDT', p).reasons).toEqual([expect.objectContaining({ code: 'COIN_REGIME' })]);
     expect(r.decisions).toHaveLength(9);
     expect(r.profiles.AMAN).toMatchObject({ accepted: 1, entered: 1, rejected: 2 });
     expect(r.profiles.AGRESIF).toMatchObject({ accepted: 2, entered: 2, rejected: 1 });
-    expect(r.entries.map((e) => `${e.profile}:${e.symbol}`)).toEqual(['AMAN:SOLUSDT', 'MENENGAH:SOLUSDT', 'AGRESIF:SOLUSDT', 'AGRESIF:NEARUSDT']);
+    expect(r.entries.map((e) => `${e.profile}:${e.symbol}`)).toEqual(['AMAN:SOLUSDT', 'MENENGAH:SOLUSDT', 'AGRESIF:SOLUSDT', 'MENENGAH:ENAUSDT', 'AGRESIF:ENAUSDT']);
+    // Stop 2 ATR for everyone; no take profit except Aman's far one (12 ATR); out after 48h.
+    expect(r.entries.every((e) => Math.abs(e.sl - 97.6) < 1e-9)).toBe(true);
+    expect(r.entries.map((e) => (e.tp === null ? null : Math.round(e.tp * 10) / 10))).toEqual([114.4, null, null, null, null]);
+    expect(pfs.AGRESIF.state.positions[0].timeoutAt).toBe(48 * 3_600_000);
     expect(pfs.AGRESIF.state.positions).toHaveLength(2);
   });
 

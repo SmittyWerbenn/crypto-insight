@@ -165,10 +165,11 @@ interface EvRow { label: string; train: Cell; valid: Cell; test: Cell }
 interface PRow {
   trades: number; targetPct: number; cutlossPct: number; timeoutPct: number; expectancyPct: number; profitFactor: number; returnPct: number; maxDrawdownPct: number; finalEquity: number; avgHoldH: number; longestLossStreak: number;
   perMonth: { signals: number; trades: number };
+  perMonthReturnPct: number;
   funnel: { signals: number; ruleRejected: number; rulePassed: number; entered: number; moneySkipped: number; reasons: Record<string, number>; primary: Record<string, number>; money: Record<string, number> };
   acceptedPct: number; avgInvestedPct: number; maxInvestedPct: number; avgCashPct: number; hoursInvestedPct: number; feesPaid: number;
 }
-interface StratCfg { minVolRatio: number; regimes: string[]; btcRet30dMin: number | null; requireEmaUp: boolean; minBreakoutAtr: number; minAtrPct: number; maxAtrPct: number; tpAtr: number; slAtr: number; maxHoldH: number }
+interface StratCfg { minVolRatio: number; regimes: string[]; btcRet30dMin: number | null; requireEmaUp: boolean; minBreakoutAtr: number; minAtrPct: number; maxAtrPct: number; tpAtr: number | null; slAtr: number; maxHoldH: number }
 interface MoneyCfg { riskPerTrade: number; maxPerCoin: number; maxPositions: number; cashReserve: number; maxExposure: number; maxClusterExposure: number }
 interface ProfilesResearchData {
   feeRate: number;
@@ -178,7 +179,13 @@ interface ProfilesResearchData {
   evidence: Record<string, EvRow[]>;
   marginal: EvRow[];
   baselineV2: { returnPct: number; maxDrawdownPct: number; trades: number; profitFactor: number };
+  /** Rules before the 2026-10-06 revision, same universe and fee. */
+  v1?: Record<ProfileId, Record<Period, { trades: number; returnPct: number; maxDrawdownPct: number; perMonthReturnPct: number }>>;
+  monthly?: Record<ProfileId, { month: string; pnl: number }[]>;
+  universe?: string[];
 }
+/** Monthly return the user aims for per profile (2026-10-06). Shown against the backtest, not promised. */
+const MONTH_TARGET: Record<ProfileId, number> = { AMAN: 10, MENENGAH: 20, AGRESIF: 30 };
 const PERIOD: Record<Period, string> = { train: 'Training 2025', valid: 'Validasi 2026-H1', test: 'Test 2026-Q3', full: 'Penuh 21 bulan' };
 const SPLITS: Split[] = ['train', 'valid', 'test'];
 const EVIDENCE_TITLE: Record<string, string> = { volume: 'Volume (rasio vs rata-rata 20 jam)', btc: 'Kondisi BTC (return 30 hari)', regime: 'Regime koin', ema: 'Momentum (EMA20 vs EMA50)', atr: 'ATR 1h (= jarak stop / risk)', breakout: 'Kekuatan breakout', score: 'Skor engine' };
@@ -223,7 +230,7 @@ export function ProfilesResearch() {
     ['Momentum', (s) => (s.requireEmaUp ? 'EMA20 > EMA50' : 'bebas')],
     ['ATR 1h (risk)', (s) => `${s.minAtrPct}% – ${s.maxAtrPct}% (stop ${(s.slAtr * s.minAtrPct).toFixed(1)}–${(s.slAtr * s.maxAtrPct).toFixed(1)}%)`],
     ['Skor engine minimum', () => 'tidak dipakai (tidak berhubungan dengan hasil)'],
-    ['Take profit / cut loss', (s) => `${s.tpAtr} ATR / ${s.slAtr} ATR`],
+    ['Take profit / cut loss', (s) => `${s.tpAtr === null ? 'tanpa TP' : `${s.tpAtr} ATR`} / ${s.slAtr} ATR`],
     ['Timeout', (s) => `${s.maxHoldH} jam`],
     ['Risk maks / trade', (_s, m) => `${(m.riskPerTrade * 100).toFixed(2)}% modal`],
     ['Alokasi maks / koin', (_s, m) => `${(m.maxPerCoin * 100).toFixed(0)}%`],
@@ -241,6 +248,7 @@ export function ProfilesResearch() {
     ['TIMEOUT', (x) => pct(x.timeoutPct)],
     ['Expectancy / trade (net)', (x) => pct(x.expectancyPct, 3, true)],
     ['Profit factor', (x) => x.profitFactor.toFixed(2)],
+    ['Return rata-rata / bulan', (x) => <span className={tone(x.perMonthReturnPct)}>{pct(x.perMonthReturnPct ?? 0, 1, true)}</span>],
     ['Return (Rp10 jt)', (x) => <span className={tone(x.returnPct)}>{pct(x.returnPct, 1, true)} → {fmtRp(x.finalEquity)}</span>],
     ['Max drawdown', (x) => pct(x.maxDrawdownPct, 1), 'text-down'],
     ['Loss streak terpanjang', (x) => x.longestLossStreak],
@@ -251,12 +259,49 @@ export function ProfilesResearch() {
   const reasonCodes = [...new Set(P.flatMap((p) => [...Object.keys(full(p).funnel.reasons), ...Object.keys(full(p).funnel.money)]))];
   return (
     <div className="space-y-4">
-      <Notice tone="info" title="3 profil: beda selektivitas, bukan cuma beda ukuran posisi">
-        Semua profil melihat signal yang sama (breakout 20 jam, volume ≥ 1,5x) dan bertingkat: setiap signal yang diterima Aman juga diterima Menengah dan Agresif.
-        Threshold dicari di data training 2025, dicek di validasi 2026-H1, lalu diuji di 2026-Q3 dengan fee 0,1%/sisi.
-        Irisan yang merugi setelah fee di training <i>dan</i> test (BTC Neutral, koin SIDEWAYS, ATR &lt; 1%) ditolak semua profil — termasuk Agresif.
-        Agresif lebih aktif karena menerima volume dan breakout yang lebih lemah, posisi lebih banyak, dan cash reserve lebih kecil.
+      <Notice tone="info" title="Revisi 6 Oktober 2026: exit tanpa target tetap, 59 koin">
+        <p>
+          Exit lama (TP 0,75–2 ATR, 8–12 jam) ternyata merugi di 38 koin yang tidak dipakai saat menyusun aturan. Exit baru: <b>tanpa take profit</b>
+          (Aman: TP jauh 12 ATR), stop 2 ATR, keluar setelah 48 jam. Exit baru lebih baik untuk setiap profil, di setiap periode, di koin lama maupun baru.
+          Konsekuensinya: win rate ~30–35% — banyak cut loss kecil, dibayar oleh sedikit kenaikan besar. Hasil sangat bergantung pada beberapa lonjakan besar
+          (mis. MOVR, QNT, ZEC), jadi bulan-bulan tanpa lonjakan bisa merah.
+        </p>
+        <p className="mt-1">
+          Universe {r.universe?.length ?? 59} koin. Agresif kini memakai filter Menengah (volume ≥ 3x) dengan ukuran posisi lebih besar — volume 1,5–3x
+          menambah banyak trade tapi lebih sering rugi. Irisan yang merugi setelah fee (BTC Neutral, koin SIDEWAYS, EMA20 &lt; EMA50, ATR &lt; 1%) ditolak semua profil.
+        </p>
       </Notice>
+
+      {r.v1 && r.monthly && (
+        <Card>
+          <CardHeader title="Aturan lama vs baru, dan target bulanan" subtitle={`Return rata-rata per bulan, fee ${(r.feeRate * 100).toFixed(1)}%/sisi, tanpa compounding · target adalah keinginan, bukan janji`} />
+          <CardBody className="overflow-x-auto p-0">
+            <Table>
+              <THead><TR><TH>Profil</TH>{(['train', 'valid', 'test', 'full'] as Period[]).map((k) => <TH key={k}>{PERIOD[k]}: lama → baru</TH>)}<TH>Target</TH><TH>Bulan ≥ target</TH><TH>Bulan merah</TH></TR></THead>
+              <TBody>
+                {P.map((p) => {
+                  const months = r.monthly![p].map((m) => (m.pnl / 10_000_000) * 100);
+                  return (
+                    <TR key={p}>
+                      <TD className="font-semibold">{PROFILE_LABEL[p]}</TD>
+                      {(['train', 'valid', 'test', 'full'] as Period[]).map((k) => (
+                        <TD key={k} className="num whitespace-nowrap text-xs">
+                          <span className={tone(r.v1![p][k].perMonthReturnPct)}>{pct(r.v1![p][k].perMonthReturnPct, 1, true)}</span> →{' '}
+                          <span className={cn('font-semibold', tone(r.results[p].fee[k].perMonthReturnPct))}>{pct(r.results[p].fee[k].perMonthReturnPct, 1, true)}</span>
+                          <span className="text-ink-3"> · DD {pct(r.results[p].fee[k].maxDrawdownPct, 0)}</span>
+                        </TD>
+                      ))}
+                      <TD className="num">{MONTH_TARGET[p]}%</TD>
+                      <TD className="num">{months.filter((x) => x >= MONTH_TARGET[p]).length} / {months.length}</TD>
+                      <TD className="num">{months.filter((x) => x < 0).length} / {months.length}</TD>
+                    </TR>
+                  );
+                })}
+              </TBody>
+            </Table>
+          </CardBody>
+        </Card>
+      )}
 
       <Card>
         <CardHeader title="I. Threshold per profil (hasil backtest)" subtitle="Setiap angka punya bukti di tabel K & L" />
@@ -349,7 +394,7 @@ export function ProfilesResearch() {
       </Card>
 
       <Card>
-        <CardHeader title="L. Bukti per threshold" subtitle="Expectancy per trade setelah fee 0,1%/sisi (exit 2/2 ATR, 12 jam), satu posisi per koin. Setiap irisan memakai aturan Agresif kecuali dimensi yang diuji." />
+        <CardHeader title="L. Bukti per threshold" subtitle="Expectancy per trade setelah fee 0,1%/sisi (exit baru: tanpa TP, stop 2 ATR, 48 jam), satu posisi per koin. Setiap irisan memakai aturan Agresif lama (paling longgar) kecuali dimensi yang diuji." />
         <CardBody className="space-y-4">
           {Object.entries(r.evidence).map(([k, rows]) => (
             <div key={k} className="overflow-x-auto">

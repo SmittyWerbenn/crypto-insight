@@ -11,9 +11,9 @@ export const AXIS = { fontSize: 11, fill: '#8491a5' };
 export type ProfileId = 'AMAN' | 'MENENGAH' | 'AGRESIF';
 /** Fixed categorical order (validated palette: blue, orange, aqua); the entity keeps its color everywhere. */
 export const PROFILES: { id: ProfileId; label: string; color: string; blurb: string }[] = [
-  { id: 'AMAN', label: 'Aman', color: '#2a78d6', blurb: 'Filter ketat · sedikit trade · banyak cash · target dekat' },
-  { id: 'MENENGAH', label: 'Menengah', color: '#eb6834', blurb: 'Filter sedang · trade sedang · exposure seimbang' },
-  { id: 'AGRESIF', label: 'Agresif', color: '#1baf7a', blurb: 'Filter longgar · banyak trade · exposure tinggi · tetap ada risk control' },
+  { id: 'AMAN', label: 'Aman', color: '#2a78d6', blurb: 'Filter paling ketat · sedikit trade · banyak cash · TP jauh 12 ATR' },
+  { id: 'MENENGAH', label: 'Menengah', color: '#eb6834', blurb: 'Filter sedang · tanpa TP, stop 2 ATR, 48 jam · exposure seimbang' },
+  { id: 'AGRESIF', label: 'Agresif', color: '#1baf7a', blurb: 'Filter Menengah · posisi lebih besar · exposure tinggi · drawdown lebih dalam' },
 ];
 export const PROFILE_LABEL: Record<ProfileId, string> = { AMAN: 'Aman', MENENGAH: 'Menengah', AGRESIF: 'Agresif' };
 

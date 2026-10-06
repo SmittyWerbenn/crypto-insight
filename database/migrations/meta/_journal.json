@@ -57,6 +57,13 @@
       "when": 1791042837976,
       "tag": "0007_paper_capital_10m",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1791277009632,
+      "tag": "0008_paper_no_target",
+      "breakpoints": true
     }
   ]
 }

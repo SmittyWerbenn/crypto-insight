@@ -365,7 +365,7 @@ export const paperPositions = pgTable('paper_positions', {
   openedAt: ts('opened_at').notNull(),
   plannedCost: doublePrecision('planned_cost').notNull(),
   layers: jsonb('layers').notNull(),
-  tp: doublePrecision('tp').notNull(),
+  tp: doublePrecision('tp'),
   sl: doublePrecision('sl').notNull(),
   timeoutAt: ts('timeout_at').notNull(),
   atrPct: doublePrecision('atr_pct').notNull(),
@@ -396,7 +396,7 @@ export const paperTrades = pgTable(
     holdH: doublePrecision('hold_h').notNull(),
     mfePct: doublePrecision('mfe_pct').notNull(),
     maePct: doublePrecision('mae_pct').notNull(),
-    tp: doublePrecision('tp').notNull(),
+    tp: doublePrecision('tp'),
     sl: doublePrecision('sl').notNull(),
     layers: jsonb('layers').notNull(),
     /** Entry snapshot: score, regimes, ATR, ATR percentile, RSI, MACD, volume, momentum, allocation, exposure. */

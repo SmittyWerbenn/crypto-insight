@@ -3,9 +3,9 @@
 // Writes data/profiles-report.json (copied into src/services/paper/research-profiles.data.ts).
 import { writeFileSync } from 'node:fs';
 import { runPortfolio, summarize, cands } from './pf.ts';
-import { DIR, SPLITS, backtest, type Cand, type Split } from './lib.ts';
-import { PROFILES, PROFILE_IDS, STRATEGY_V2, btcState, isSignal, rejectReasons, type ProfileId, type StrategyConfig } from '../../src/services/paper/strategy.ts';
-import { MONEY_PROFILES, MONEY_V2, PAPER_CAPITAL } from '../../src/services/paper/portfolio.ts';
+import { DIR, SPLITS, SYMS, backtest, type Cand, type Split } from './lib.ts';
+import { PROFILES, PROFILES_V1, PROFILE_IDS, STRATEGY_V2, btcState, isSignal, rejectReasons, type ProfileId, type StrategyConfig } from '../../src/services/paper/strategy.ts';
+import { MONEY_PROFILES, MONEY_PROFILES_V1, MONEY_V2, PAPER_CAPITAL } from '../../src/services/paper/portfolio.ts';
 
 const FEE = 0.001;
 const periods: Record<string, readonly number[]> = { train: SPLITS.train, valid: SPLITS.valid, test: SPLITS.test, full: [SPLITS.train[0], SPLITS.test[1]] };
@@ -13,6 +13,17 @@ const months = (k: string) => (periods[k][1] - periods[k][0]) / (30.44 * 86_400_
 const r2 = (v: number, d = 2) => Math.round(v * 10 ** d) / 10 ** d;
 const out: any = { generatedAt: new Date().toISOString(), feeRate: FEE, periods: Object.fromEntries(Object.entries(periods).map(([k, v]) => [k, v.map((x) => new Date(x).toISOString())])) };
 out.profiles = Object.fromEntries(PROFILE_IDS.map((p) => [p, { strategy: PROFILES[p], money: MONEY_PROFILES[p] }]));
+out.universe = SYMS;
+
+// 0) Old rules (before 2026-10-06: fixed targets, Agresif volume ≥ 1.5x) vs the current rules, same universe and fee
+out.v1 = {};
+for (const p of PROFILE_IDS) {
+  out.v1[p] = {};
+  for (const [k, [a, b]] of Object.entries(periods)) {
+    const s = summarize(runPortfolio({ from: a, to: b, strat: PROFILES_V1[p], money: { ...MONEY_PROFILES_V1[p], feeRate: FEE, compounding: false } }).pf, PAPER_CAPITAL);
+    out.v1[p][k] = { ...s, perMonthReturnPct: r2(s.returnPct / months(k)) };
+  }
+}
 
 // 1) Portfolio per profile × period (fee 0.1% and 0%), no compounding: funnel + outcomes + utilization
 out.results = {};
@@ -25,6 +36,7 @@ for (const p of PROFILE_IDS) {
       const row = {
         ...s,
         perMonth: { signals: r2(r.funnel.signals / months(k), 1), trades: r2(s.trades / months(k), 1) },
+        perMonthReturnPct: r2(s.returnPct / months(k)),
         funnel: r.funnel,
         acceptedPct: r2((100 * r.funnel.rulePassed) / (r.funnel.signals || 1), 1),
         avgInvestedPct: r2(r.avgInvestedPct),
@@ -40,18 +52,21 @@ for (const p of PROFILE_IDS) {
         for (const l of r.pf.ledger) curve.set(day(l.time), Math.round(l.equity));
         (out.equity ??= {})[p] = [...curve].map(([date, equity]) => ({ date, equity }));
         const mon: Record<string, number> = {};
+        for (let t = a; t < b; t += 28 * 86_400_000) mon[day(t).slice(0, 7)] = 0; // months without a trade show as 0
         for (const t of r.pf.closed) { const m = day(t.closedAt).slice(0, 7); mon[m] = (mon[m] ?? 0) + t.pnl; }
-        (out.monthly ??= {})[p] = Object.entries(mon).map(([month, pnl]) => ({ month, pnl: Math.round(pnl) }));
+        (out.monthly ??= {})[p] = Object.entries(mon).sort().map(([month, pnl]) => ({ month, pnl: Math.round(pnl) }));
       }
       console.log(p.padEnd(9), (fee ? 'fee ' : 'nofee'), k.padEnd(5), `sig ${r.funnel.signals} acc ${r.funnel.rulePassed} n ${s.trades} T ${s.targetPct} CL ${s.cutlossPct} exp ${s.expectancyPct} ret ${s.returnPct}% DD ${s.maxDrawdownPct}% util ${r2(r.avgInvestedPct)}%`);
     }
   }
 }
 
-// 2) Threshold evidence: per-trade net expectancy (fee 0.1%/side) of signal slices, one position per coin
+// 2) Threshold evidence: per-trade net expectancy (fee 0.1%/side) of signal slices, one position per coin,
+//    with the current exit (no target ≈ 99 ATR, stop 2 ATR, 48h)
 const { C } = cands();
-const ex = { tpAtr: 2, slAtr: 2, holdH: 12 };
-const exA = { tpAtr: PROFILES.AMAN.tpAtr, slAtr: PROFILES.AMAN.slAtr, holdH: PROFILES.AMAN.maxHoldH };
+const ex = { tpAtr: 99, slAtr: 2, holdH: 48 };
+const exOld = { tpAtr: 2, slAtr: 2, holdH: 12 };
+const exA = { tpAtr: 0.75, slAtr: 2.5, holdH: 8 };
 const SIG = C.filter(isSignal);
 const cell = (rule: (c: Cand) => boolean, sp: Split, e = ex) => {
   const xs = backtest(SIG, rule, e, sp);
@@ -65,8 +80,8 @@ const row = (label: string, rule: (c: Cand) => boolean, e = ex) => {
   console.log(label.padEnd(44), ['train', 'valid', 'test'].map((k) => `${k} n${r[k].n} net ${r[k].expNet} CL ${r[k].cutlossPct}`).join(' | '));
   return r;
 };
-// base filter for one-dimension slices: the Agresif rules minus the dimension being tested
-const AG = PROFILES.AGRESIF;
+// base filter for one-dimension slices: the old (loosest) Agresif rules minus the dimension being tested
+const AG = PROFILES_V1.AGRESIF;
 const without = (cfg: StrategyConfig, drop: Partial<StrategyConfig>) => (c: Cand) => rejectReasons(c, c.btc, { ...cfg, ...drop }).length === 0;
 out.evidence = {
   volume: [[1.5, 2], [2, 2.5], [2.5, 3], [3, 4], [4, 6], [6, 1e9]].map(([lo, hi]) => row(`Volume ${lo}x–${hi > 1e8 ? '∞' : hi + 'x'}`, (c) => without(AG, {})(c) && c.volRatio >= lo && c.volRatio < hi)),
@@ -81,10 +96,12 @@ out.evidence = {
 // 3) Marginal value of each loosening step, and of the slices every profile rejects
 const ok = (p: ProfileId) => (c: Cand) => rejectReasons(c, c.btc, PROFILES[p]).length === 0;
 out.marginal = [
-  row('Aman (exit Aman 0.75/2.5 ATR)', ok('AMAN'), exA),
-  row('Aman dengan exit 2/2 ATR', ok('AMAN')),
+  row('Aman, exit lama (TP 0.75 / SL 2.5 ATR, 8 jam)', ok('AMAN'), exA),
+  row('Aman, exit baru (TP 12 / SL 2 ATR, 48 jam)', ok('AMAN'), { tpAtr: 12, slAtr: 2, holdH: 48 }),
+  row('Menengah, exit lama (TP 2 / SL 2 ATR, 12 jam)', ok('MENENGAH'), exOld),
+  row('Menengah, exit baru (tanpa TP, SL 2 ATR, 48 jam)', ok('MENENGAH')),
   row('Diterima Menengah, ditolak Aman', (c) => ok('MENENGAH')(c) && !ok('AMAN')(c)),
-  row('Diterima Agresif, ditolak Menengah', (c) => ok('AGRESIF')(c) && !ok('MENENGAH')(c)),
+  row('Volume 1.5–3x (dulu diterima Agresif, sekarang ditolak)', (c) => rejectReasons(c, c.btc, PROFILES_V1.AGRESIF).length === 0 && !ok('MENENGAH')(c)),
   row('Ditolak semua: BTC Neutral (lainnya lolos Agresif)', (c) => without(AG, { btcRet30dMin: -5 })(c) && btcState(c.btc) === 'NEUTRAL'),
   row('Ditolak semua: koin SIDEWAYS', (c) => without(AG, { regimes: ['SIDEWAYS'] })(c)),
   row('Ditolak semua: ATR < 1%', (c) => without(AG, { minAtrPct: 0 })(c) && c.atrPct < 1),

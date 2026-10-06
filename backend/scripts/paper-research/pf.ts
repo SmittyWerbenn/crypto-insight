@@ -57,9 +57,9 @@ export function runPortfolio(o: RunOpts) {
       ptr[p.id] = i;
       if (i >= b.t.length || b.t[i] !== t) continue;
       if (t >= p.timeoutAt) { pf.close(p, t, b.o[i], 'TIMEOUT'); continue; }
-      const hitSl = b.l[i] <= p.sl, hitTp = b.h[i] >= p.tp;
+      const hitSl = b.l[i] <= p.sl, hitTp = p.tp !== null && b.h[i] >= p.tp;
       if (hitSl) { p.low = Math.min(p.low, p.sl); pf.close(p, t + M5, p.sl, 'CUTLOSS'); continue; } // same-bar tie → stop (conservative)
-      if (hitTp) { p.high = Math.max(p.high, p.tp); pf.close(p, t + M5, p.tp, 'TARGET'); continue; }
+      if (hitTp) { p.high = Math.max(p.high, p.tp!); pf.close(p, t + M5, p.tp!, 'TARGET'); continue; }
       p.high = Math.max(p.high, b.h[i]); p.low = Math.min(p.low, b.l[i]);
     }
     if (t % H !== 0) continue;

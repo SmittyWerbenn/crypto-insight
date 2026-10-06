@@ -25,10 +25,11 @@ export interface StrategyConfig {
   /** Coin 1h ATR% range. Below the minimum the target is too small to beat fees; above the maximum the stop is too wide. */
   minAtrPct: number;
   maxAtrPct: number;
-  /** Take profit / stop loss as multiples of the coin's 1h ATR, from the fill price. */
-  tpAtr: number;
+  /** Take profit / stop loss as multiples of the coin's 1h ATR, from the fill price. null = no target: the
+   * trade runs until the stop or the time limit (lets the big breakouts pay for the many small stops). */
+  tpAtr: number | null;
   slAtr: number;
-  /** Close at market after this many hours (never more than 24). */
+  /** Close at market after this many hours. */
   maxHoldH: number;
 }
 
@@ -109,33 +110,45 @@ export function entryCheck(f: CoinFeatures, btc: BtcContext, cfg: StrategyConfig
 }
 
 export interface Levels {
-  tp: number;
+  /** null = no target (exit on the stop or the time limit). */
+  tp: number | null;
   sl: number;
-  tpPct: number;
+  tpPct: number | null;
   slPct: number;
 }
 
 export function levelsFor(fill: number, atrPct: number, cfg: StrategyConfig): Levels {
-  const tpPct = cfg.tpAtr * atrPct;
+  const tpPct = cfg.tpAtr === null ? null : cfg.tpAtr * atrPct;
   const slPct = cfg.slAtr * atrPct;
-  return { tp: fill * (1 + tpPct / 100), sl: fill * (1 - slPct / 100), tpPct, slPct };
+  return { tp: tpPct === null ? null : fill * (1 + tpPct / 100), sl: fill * (1 - slPct / 100), tpPct, slPct };
 }
 
 export type ProfileId = 'AMAN' | 'MENENGAH' | 'AGRESIF';
 export const PROFILE_IDS: ProfileId[] = ['AMAN', 'MENENGAH', 'AGRESIF'];
 
 /**
- * Three profiles that differ in how selective they are, not only in size. Thresholds are nested
- * (every Aman signal passes Menengah, every Menengah signal passes Agresif) and come from the
- * 2025 train / 2026-H1 validation backtest with 0.1% fee per side:
- *  - BTC Neutral and coin SIDEWAYS signals lost money after fees in train and test → rejected by every profile.
- *  - ATR < 1% loses after fees (the target is too small) → minimum for every profile.
- *  - The engine score has no relation to the outcome of a breakout → not used as a threshold.
- *  - Volume and breakout strength are the selectivity dials: Aman ≥ 4x and ≥ 0.25 ATR, Menengah ≥ 3x, Agresif ≥ 1.5x.
- * Aman takes a near target (0.75 ATR) with a wide stop: high TARGET rate, few CUTLOSS.
- * Menengah and Agresif aim for 2 ATR with a 2 ATR stop: more CUTLOSS, but more profit per trade.
+ * Three profiles (revision 2026-10-06, see docs/paper-trading-v2.md "Revisi exit & universe"). Research on 59
+ * coins (the 21 original + 38 liquid coins never used to pick rules), 2025 train / 2026-H1 valid / 2026-Q3 test,
+ * 0.1% fee per side:
+ *  - Exit: no take profit (Aman: a far one), stop 2 ATR, close after 48h. Beat the old fixed targets (0.75–2 ATR, 8–12h) for every
+ *    profile, in every period and on the unseen coins (where the old exits lost money). Win rate drops to ~30–35%:
+ *    many small stops, paid for by a few large breakouts.
+ *  - BTC Neutral, coin SIDEWAYS, EMA20 < EMA50 and ATR < 1% lose after fees → rejected by every profile.
+ *  - Volume ≥ 1.5x (the old Agresif) added mostly losing signals on the new coins → Agresif now uses the
+ *    Menengah filters and differs by size (risk per trade, positions, reserve), not by weaker signals.
+ *  - Aman stays the most selective (volume ≥ 4x, breakout ≥ 0.25 ATR, ATR 1–3%) and takes profit at 12 ATR:
+ *    without a target a few extreme spikes (MOVR +200%) were given back, which pushed its drawdown to −26%;
+ *    with 12 ATR it was −7% with fewer losing months, for a somewhat lower return.
+ * Thresholds stay nested (Aman ⊆ Menengah ⊆ Agresif).
  */
 export const PROFILES: Record<ProfileId, StrategyConfig> = {
+  AMAN: { minVolRatio: 4, regimes: ['BULL'], btcRet30dMin: 0, requireEmaUp: true, minBreakoutAtr: 0.25, minAtrPct: 1, maxAtrPct: 3, tpAtr: 12, slAtr: 2, maxHoldH: 48 },
+  MENENGAH: { minVolRatio: 3, regimes: ['BULL'], btcRet30dMin: 0, requireEmaUp: true, minBreakoutAtr: 0, minAtrPct: 1, maxAtrPct: 4, tpAtr: null, slAtr: 2, maxHoldH: 48 },
+  AGRESIF: { minVolRatio: 3, regimes: ['BULL'], btcRet30dMin: 0, requireEmaUp: true, minBreakoutAtr: 0, minAtrPct: 1, maxAtrPct: 4, tpAtr: null, slAtr: 2, maxHoldH: 48 },
+};
+
+/** Profile rules before the 2026-10-06 revision (fixed targets, Agresif volume ≥ 1.5x), kept for the research comparison. */
+export const PROFILES_V1: Record<ProfileId, StrategyConfig> = {
   AMAN: { minVolRatio: 4, regimes: ['BULL'], btcRet30dMin: 0, requireEmaUp: true, minBreakoutAtr: 0.25, minAtrPct: 1, maxAtrPct: 3, tpAtr: 0.75, slAtr: 2.5, maxHoldH: 8 },
   MENENGAH: { minVolRatio: 3, regimes: ['BULL'], btcRet30dMin: 0, requireEmaUp: true, minBreakoutAtr: 0, minAtrPct: 1, maxAtrPct: 4, tpAtr: 2, slAtr: 2, maxHoldH: 12 },
   AGRESIF: { minVolRatio: 1.5, regimes: ['BULL'], btcRet30dMin: 0, requireEmaUp: true, minBreakoutAtr: 0, minAtrPct: 1, maxAtrPct: 6, tpAtr: 2, slAtr: 2, maxHoldH: 12 },
@@ -186,3 +199,14 @@ export const UNIVERSE_V2 = [
   'BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'XRPUSDT', 'DOGEUSDT', 'ADAUSDT', 'AVAXUSDT', 'LINKUSDT', 'NEARUSDT', 'SUIUSDT',
   'HBARUSDT', 'ENAUSDT', 'WLDUSDT', 'QNTUSDT', 'MOVRUSDT', 'AAVEUSDT', 'UNIUSDT', 'XLMUSDT', 'ZECUSDT', 'PUMPUSDT',
 ];
+
+/** Added 2026-10-06: liquid Binance spot USDT pairs (> $3M/day) with history since 2024-11, tested out of sample. */
+export const UNIVERSE_EXTRA = [
+  'HYPEUSDT', 'TAOUSDT', 'FETUSDT', 'FILUSDT', 'ZROUSDT', 'TRXUSDT', 'PEPEUSDT', 'ONDOUSDT', 'LTCUSDT', 'ARBUSDT', 'PENGUUSDT',
+  'SANDUSDT', 'ICPUSDT', 'APTUSDT', 'TRUMPUSDT', 'DOTUSDT', 'RENDERUSDT', 'DASHUSDT', 'BCHUSDT', 'STRKUSDT', 'RAYUSDT',
+  'VIRTUALUSDT', 'TONUSDT', 'POLUSDT', 'INJUSDT', 'SEIUSDT', 'OPUSDT', 'JUPUSDT', 'TIAUSDT', 'ETCUSDT', 'ATOMUSDT', 'WIFUSDT',
+  'BONKUSDT', 'SHIBUSDT', 'FLOKIUSDT', 'CRVUSDT', 'LDOUSDT', 'ALGOUSDT',
+];
+
+/** Coins the live engine scans every hour. */
+export const UNIVERSE = [...UNIVERSE_V2, ...UNIVERSE_EXTRA];

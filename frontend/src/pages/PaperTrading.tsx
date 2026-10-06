@@ -34,7 +34,7 @@ interface OpenPos {
   timeoutAt: string;
   entry: number;
   price: number | null;
-  tp: number;
+  tp: number | null;
   sl: number;
   cost: number;
   value: number;
@@ -80,7 +80,7 @@ interface Trade {
   holdH: number;
   mfePct: number;
   maePct: number;
-  tp: number;
+  tp: number | null;
   sl: number;
   equityAfter: number;
   cashAfter: number;
@@ -256,7 +256,7 @@ function Live({ profile, setProfile }: { profile: ProfileId; setProfile: (p: Pro
                     <TD className="num">{pct(p.allocationPct)} · {fmtRp(p.cost)}</TD>
                     <TD className="num">{fmtPriceSym(p.entry)}</TD>
                     <TD className="num">{fmtPriceSym(p.price)}</TD>
-                    <TD className="num text-up">{fmtPriceSym(p.tp)}</TD>
+                    <TD className="num text-up">{p.tp === null ? <span className="text-ink-3" title="Tanpa take profit: keluar di cut loss atau batas waktu">—</span> : fmtPriceSym(p.tp)}</TD>
                     <TD className="num text-down">{fmtPriceSym(p.sl)}</TD>
                     <TD className={cn('num', tone(p.unrealizedPnl))}>{fmtRp(p.unrealizedPnl, true)} ({pct(p.unrealizedPct, 2, true)})</TD>
                     <TD className="num text-ink-3">{fmtDate(p.timeoutAt)}</TD>
@@ -422,18 +422,18 @@ function AssetTable({ rows }: { rows: Asset[] }) {
 
 function ConfigCard({ cfg, profile }: { cfg: Summary['config']; profile: ProfileId }) {
   // Backends before the profiles (2026-10-03) send { coinRegime, breakoutLookback } and no ATR range
-  const raw = cfg.strategy as unknown as { minVolRatio: number; regimes?: string[]; coinRegime?: string; btcRet30dMin: number | null; requireEmaUp?: boolean; minBreakoutAtr?: number; minAtrPct?: number; maxAtrPct?: number; tpAtr: number; slAtr: number; maxHoldH: number };
+  const raw = cfg.strategy as unknown as { minVolRatio: number; regimes?: string[]; coinRegime?: string; btcRet30dMin: number | null; requireEmaUp?: boolean; minBreakoutAtr?: number; minAtrPct?: number; maxAtrPct?: number; tpAtr: number | null; slAtr: number; maxHoldH: number };
   const s = { ...raw, regimes: raw.regimes ?? [raw.coinRegime ?? 'BULL'], minAtrPct: raw.minAtrPct ?? 0, maxAtrPct: raw.maxAtrPct ?? 100 };
   const m = cfg.money as Record<string, number>;
   const set = cfg.settings;
   const rows: [string, string][] = [
-    ['Universe', '21 koin likuid Binance USDT (BTC, ETH, BNB, SOL, …)'],
+    ['Universe', '59 koin likuid Binance USDT (21 awal + 38 tambahan sejak 6 Okt 2026)'],
     ['Entry', `Close 1h > high 20 jam${s.minBreakoutAtr ? ` + ${s.minBreakoutAtr} ATR` : ''}, volume ≥ ${s.minVolRatio}x rata-rata 20 jam, regime koin ${s.regimes.join('/')}${s.requireEmaUp ? ', EMA20 > EMA50' : ''}`],
     ['Filter BTC', s.btcRet30dMin === null ? 'Tidak ada' : `Return BTC 30 hari > ${s.btcRet30dMin}% (jika tidak → HOLD CASH)`],
     ['ATR (risk)', `${s.minAtrPct}% – ${s.maxAtrPct}% per jam; di bawah min target tidak menutup fee, di atas maks stop terlalu lebar`],
-    ['Take profit', `${s.tpAtr} × ATR(1h) dari harga fill`],
+    ['Take profit', s.tpAtr === null ? 'Tidak ada — posisi dibiarkan jalan sampai cut loss atau batas waktu (kenaikan besar yang membayar banyak cut loss kecil)' : `${s.tpAtr} × ATR(1h) dari harga fill`],
     ['Cut loss', `${s.slAtr} × ATR(1h) dari harga fill`],
-    ['Timeout', `${s.maxHoldH} jam (maks. 24 jam)`],
+    ['Timeout', `${s.maxHoldH} jam, lalu dijual di harga pasar`],
     ['Skor engine', 'Tidak dipakai — di backtest tidak berhubungan dengan hasil breakout'],
     ['Risk / trade', `${(m.riskPerTrade * 100).toFixed(1)}% basis ukuran posisi jika kena cut loss`],
     ['Ukuran posisi', `Risk ÷ jarak SL, maks ${(m.maxPerCoin * 100).toFixed(0)}% basis per koin`],
@@ -726,7 +726,7 @@ export default function PaperTrading() {
     <div className="space-y-4">
       <PageHeader
         title="Paper Trading V2"
-        description="Tiga akun virtual Rp10.000.000 (Aman, Menengah, Agresif) membaca signal breakout yang sama dengan tingkat selektivitas berbeda. Holding maks. 12 jam, fee & compounding bisa diatur. Bukan order nyata."
+        description="Tiga akun virtual Rp10.000.000 (Aman, Menengah, Agresif) membaca signal breakout yang sama dari 59 koin dengan tingkat selektivitas dan ukuran posisi berbeda. Holding maks. 48 jam, fee & compounding bisa diatur. Bukan order nyata."
         actions={<Segmented value={tab} onChange={setTab} options={[{ value: 'live', label: 'Live' }, { value: 'research', label: 'Riset & Backtest' }]} />}
       />
       {tab === 'live' ? <Live profile={profile} setProfile={setProfile} /> : <ResearchTab />}

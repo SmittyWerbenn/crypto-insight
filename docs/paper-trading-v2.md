@@ -332,6 +332,40 @@ Expectancy per trade (net) dari irisan tambahan di setiap langkah pelonggaran:
 
 **Penghambat terbesar** untuk semua profil adalah filter makro BTC: 39% signal muncul saat BTC Neutral/Bear. Itu kondisi pasar, bukan filter yang terlalu ketat.
 
+## Revisi exit & universe (6 Oktober 2026)
+
+Permintaan: hasil lebih besar dan lebih aktif (target keinginan: Aman 10%, Menengah 20%, Agresif 30% per bulan).
+
+### Apa yang diuji
+
+- **Universe.** 38 koin likuid baru (> $3 jt/hari, histori sejak 2024-11) ditambahkan ke 21 koin awal. Koin baru tidak pernah dipakai saat menyusun aturan, jadi menjadi uji out-of-sample yang jujur.
+- **Exit.** Grid TP 3–99 ATR × SL 1,5–3 ATR × hold 12–168 jam, breakeven stop, dan trailing stop. Dipilih di training 2025, dicek di validasi 2026-H1 dan test 2026-Q3.
+- **Sizing.** Risk per trade 1–3%, posisi maksimal, dan cash reserve.
+
+### Temuan
+
+1. **Aturan lama tidak berlaku di koin baru.** Di 38 koin baru, Agresif lama −4% dalam 21 bulan (DD −29%) dan Menengah lama −23%. Edge lama sebagian besar spesifik ke 21 koin awal.
+2. **Tanpa take profit + stop 2 ATR + 48 jam** lebih baik dari exit lama untuk setiap profil, di setiap periode, di koin lama maupun baru. Breakeven dan trailing stop memperburuk hasil. Hold > 48 jam bagus di 2025 tapi rugi di 2026-H1.
+3. **Win rate turun ke ~30–35%.** Banyak cut loss kecil, dibayar oleh sedikit kenaikan besar (MOVR +202%, QNT +108%, ZEC +84% dalam 48 jam). Hasil **sangat bergantung pada beberapa lonjakan**: tanpa 3 trade terbesar, return 21 koin kira-kira separuhnya.
+4. Tanpa TP sama sekali, sebagian lonjakan ekstrem dikembalikan sebelum 48 jam habis, sehingga drawdown terhitung dari puncak equity. Aman memakai **TP jauh 12 ATR** (DD −26% → −7%, bulan merah 10 → 5).
+5. **Volume 1,5–3x** (Agresif lama) menambah banyak trade dengan expectancy jauh lebih kecil. Agresif kini memakai **filter Menengah** dengan risk 1,5% per trade dan maksimal 30% per koin.
+6. Memperbesar sizing hampir tidak menambah return. Saat pasar ramai modal sudah habis terpakai, jadi trade lain ikut terlewat.
+
+### Hasil (59 koin, fee 0,1%/sisi, tanpa compounding, rata-rata per bulan)
+
+| Profil | Lama (21 bln) | Baru: 2025 | Baru: 2026-H1 | Baru: 2026-Q3 | Baru: 21 bln | DD terburuk |
+|---|---|---|---|---|---|---|
+| Aman | 0,0% | 2,2% | 1,7% | 11,0% | 3,4% | −7% |
+| Menengah | 0,6% | 3,9% | 5,1% | 17,6% | 6,2% | −32% |
+| Agresif | 1,7% | 4,7% | 5,7% | 24,3% | 7,9% | −40% |
+
+Target 10/20/30% per bulan **hanya tercapai di bulan-bulan dengan rally altcoin kuat** (2026-Q3). Di 2025 dan 2026-H1 rata-ratanya 2–6% per bulan, dan sekitar sepertiga bulan merah. Tidak ada aturan yang diuji yang mencapai target itu secara konsisten. Detail per bulan ada di tab Riset ("Aturan lama vs baru, dan target bulanan").
+
+### Yang perlu dipantau di paper
+
+- Win rate ~30–35% dan loss streak sampai 12–15 trade itu normal untuk exit ini.
+- Bandingkan setelah 30+ trade per profil: expectancy per trade positif, rata-rata cut loss sekitar −2 ATR, dan beberapa trade TIMEOUT dengan profit besar.
+
 ## Langkah berikutnya
 
 Sesuai brief poin 34:
